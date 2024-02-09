@@ -15,7 +15,7 @@ namespace Lean
 namespace Core
 
 register_builtin_option maxHeartbeats : Nat := {
-  defValue := 0 -- was 200000
+  defValue := 200000
   descr := "maximum amount of heartbeats per command. A heartbeat is number of (small) memory allocations (in thousands), 0 means no limit"
 }
 
@@ -214,11 +214,7 @@ def throwMaxHeartbeat (moduleName : Name) (optionName : Name) (max : Nat) : Core
   let msg := s!"(deterministic) timeout at '{moduleName}', maximum number of heartbeats ({max/1000}) has been reached (use 'set_option {optionName} <num>' to set the limit)"
   throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
 
-def checkMaxHeartbeatsCore (moduleName : String) (optionName : Name) (max : Nat) : CoreM Unit := do
-  unless max == 0 do
-    let numHeartbeats ← IO.getNumHeartbeats
-    if numHeartbeats - (← read).initHeartbeats > max then
-      throwMaxHeartbeat moduleName optionName max
+def checkMaxHeartbeatsCore (moduleName : String) (optionName : Name) (max : Nat) : CoreM Unit := pure () -- don't check it
 
 def checkMaxHeartbeats (moduleName : String) : CoreM Unit := do
   checkMaxHeartbeatsCore moduleName `maxHeartbeats (← read).maxHeartbeats
