@@ -1422,7 +1422,12 @@ def addDotCompletionInfo (stx : Syntax) (e : Expr) (expectedType? : Option Expr)
   If `implicitLambda == false`, then disable implicit lambdas feature for the given syntax, but not for its subterms.
   We use this flag to implement, for example, the `@` modifier. If `Context.implicitLambda == false`, then this parameter has no effect.
   -/
-def elabTerm (stx : Syntax) (expectedType? : Option Expr) (catchExPostpone := true) (implicitLambda := true) : TermElabM Expr :=
+def elabTerm (stx : Syntax) (expectedType? : Option Expr) (catchExPostpone := true) (implicitLambda := true) : TermElabM Expr := do
+  -- if isTacticBlock stx then
+  --   let format ← PrettyPrinter.formatTerm stx
+  --   Lean.logInfo "<elabTerm>"
+  --   Lean.logInfo (Std.Format.pretty format)
+  --   Lean.logInfo "</elabTerm>"
   withRef stx <| elabTermAux expectedType? catchExPostpone implicitLambda stx
 
 def elabTermEnsuringType (stx : Syntax) (expectedType? : Option Expr) (catchExPostpone := true) (implicitLambda := true) (errorMsgHeader? : Option String := none) : TermElabM Expr := do

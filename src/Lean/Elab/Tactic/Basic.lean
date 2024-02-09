@@ -194,6 +194,27 @@ where
         catch ex => handleEx s failures ex (expandEval s ms evalFns)
 
     eval (s : SavedState) (evalFns : List _) (failures : Array EvalTacticFailure) : TacticM Unit := do
+      let ci : ContextInfo := {
+        env := ← getEnv,
+        fileMap := ← getFileMap,
+        mctx := ← getMCtx,
+        options := ← getOptions,
+        currNamespace := ← getCurrNamespace,
+        openDecls := ← getOpenDecls,
+        ngen := ← getNGen
+      }
+
+      let goals ← getUnsolvedGoals
+      Lean.logInfo "<evalTactic.eval>"
+      Lean.logInfo s!"filename = {← getFileName}"
+      Lean.logInfo s!"stx.getKind = {stx.getKind}"
+      Lean.logInfo s!"n_goals = {goals.length}"
+      Lean.logInfo "GOALS:"
+      Lean.logInfo (← ci.ppGoals goals)
+      Lean.logInfo "TACTIC:"
+      Lean.logInfo (← PrettyPrinter.formatTerm stx)
+      Lean.logInfo "</evalTactic.eval>"
+
       match evalFns with
       | []              => throwExs failures
       | evalFn::evalFns => do
