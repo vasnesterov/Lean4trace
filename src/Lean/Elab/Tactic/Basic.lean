@@ -208,11 +208,13 @@ where
       Lean.logInfo "<evalTactic.eval>"
       Lean.logInfo s!"filename = {← getFileName}"
       Lean.logInfo s!"stx.getKind = {stx.getKind}"
-      Lean.logInfo s!"n_goals = {goals.length}"
+      -- Lean.logInfo s!"n_goals = {goals.length}"
       Lean.logInfo "GOALS:"
       Lean.logInfo (← ci.ppGoals goals)
       Lean.logInfo "TACTIC:"
-      Lean.logInfo (← PrettyPrinter.formatTerm stx)
+      try
+        Lean.logInfo (← PrettyPrinter.formatTerm stx)
+      catch _ => Lean.logInfo "stx problem"
       Lean.logInfo "</evalTactic.eval>"
 
       match evalFns with
