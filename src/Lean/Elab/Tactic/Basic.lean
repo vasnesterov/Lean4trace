@@ -203,19 +203,20 @@ where
         openDecls := ← getOpenDecls,
         ngen := ← getNGen
       }
-
-      let goals ← getUnsolvedGoals
-      Lean.logInfo "<evalTactic.eval>"
-      Lean.logInfo s!"filename = {← getFileName}"
-      Lean.logInfo s!"stx.getKind = {stx.getKind}"
-      -- Lean.logInfo s!"n_goals = {goals.length}"
-      Lean.logInfo "GOALS:"
-      Lean.logInfo (← ci.ppGoals goals)
-      Lean.logInfo "TACTIC:"
-      try
-        Lean.logInfo (← PrettyPrinter.formatTerm stx)
-      catch _ => Lean.logInfo "stx problem"
-      Lean.logInfo "</evalTactic.eval>"
+      let kind := stx.getKind
+      if kind != "Lean.Parser.Tactic.tacticSeq1Indented" ∧ kind != "Lean.Parser.Tactic.tacticSeq" then
+        let goals ← getUnsolvedGoals
+        Lean.logInfo "<evalTactic.eval>"
+        Lean.logInfo s!"filename = {← getFileName}"
+        Lean.logInfo s!"stx.getKind = {kind}"
+        -- Lean.logInfo s!"n_goals = {goals.length}"
+        Lean.logInfo "GOALS:"
+        Lean.logInfo (← ci.ppGoals goals)
+        Lean.logInfo "TACTIC:"
+        try
+          Lean.logInfo (← PrettyPrinter.formatTerm stx)
+        catch _ => Lean.logInfo "stx problem"
+        Lean.logInfo "</evalTactic.eval>"
 
       match evalFns with
       | []              => throwExs failures
