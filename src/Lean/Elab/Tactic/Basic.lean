@@ -144,9 +144,42 @@ structure TraceInfo where
   proofStep : String
   stxKind : String
   fileName : String
+  startPos : String
+  endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
+  let ci : ContextInfo := {
+    env := ← getEnv,
+    fileMap := ← getFileMap,
+    mctx := ← getMCtx,
+    options := ← getOptions,
+    currNamespace := ← getCurrNamespace,
+    openDecls := ← getOpenDecls,
+    ngen := ← getNGen
+  }
+
+  let mut proofStep : String := "<parsing problem>"
+  try
+    proofStep := (← PrettyPrinter.formatTerm stx).pretty
+  catch _ => pure ()
+
+  let startPos := stx.getPos? (canonicalOnly := true)
+  let endPos := stx.getTailPos? (canonicalOnly := true)
+  match startPos, endPos with
+  | none, _ => pure ()
+  | some _, none => pure ()
+  | some startPos, some endPos =>
+    let ti : TraceInfo := {
+      proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+      proofStep := proofStep
+      stxKind := stx.getKind.toString
+      fileName := ← getFileName
+      startPos := toString <| (← getFileMap).toPosition startPos
+      endPos := toString <| (← getFileMap).toPosition endPos
+    }
+    Lean.logInfo (toJson ti).pretty
+
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
     | .node _ k _    =>
@@ -201,29 +234,6 @@ where
         catch ex => handleEx s failures ex (expandEval s ms evalFns)
 
     eval (s : SavedState) (evalFns : List _) (failures : Array EvalTacticFailure) : TacticM Unit := do
-      let ci : ContextInfo := {
-        env := ← getEnv,
-        fileMap := ← getFileMap,
-        mctx := ← getMCtx,
-        options := ← getOptions,
-        currNamespace := ← getCurrNamespace,
-        openDecls := ← getOpenDecls,
-        ngen := ← getNGen
-      }
-
-      let mut proofStep : String := "<parsing problem>"
-      try
-        proofStep := (← PrettyPrinter.formatTerm stx).pretty
-      catch _ => pure ()
-
-      let ti : TraceInfo := {
-        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty,
-        proofStep := proofStep,
-        stxKind := stx.getKind.toString,
-        fileName := ← getFileName
-      }
-      Lean.logInfo (toJson ti).pretty
-
       match evalFns with
       | []              => throwExs failures
       | evalFn::evalFns => do
