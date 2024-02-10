@@ -139,6 +139,10 @@ structure EvalTacticFailure where
   exception : Exception
   state : SavedState
 
+
+/---------------------------------------------------------------------------------------------------
+Functions for tracing. Will be moved to another file -/
+
 structure TraceInfo where
   proofState : String
   proofStep : String
@@ -148,7 +152,13 @@ structure TraceInfo where
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
-partial def evalTactic (stx : Syntax) : TacticM Unit := do
+
+/- Trace `TraceInfo` from current state. Basic function of tracing
+TODO: trace theorem name and all accessible premises -/
+def traceMainInfo (stx : Syntax) : TacticM Unit := do
+  let ignoredStxKinds : Array Name :=
+    #[`Lean.Parser.Tactic.tacticSeq1Indented, `Lean.Parser.Tactic.tacticSeq]
+
   let startPos := stx.getPos? (canonicalOnly := true)
   let endPos := stx.getTailPos? (canonicalOnly := true)
   match startPos, endPos with
@@ -156,7 +166,7 @@ partial def evalTactic (stx : Syntax) : TacticM Unit := do
   | some _, none => pure ()
   | some startPos, some endPos =>
     let stxKind := stx.getKind
-    if stxKind != `Lean.Parser.Tactic.tacticSeq1Indented ∧ stxKind != `Lean.Parser.Tactic.tacticSeq then
+    if ¬ ignoredStxKinds.contains stxKind then
       let ci : ContextInfo := {
         env := ← getEnv,
         fileMap := ← getFileMap,
@@ -181,6 +191,21 @@ partial def evalTactic (stx : Syntax) : TacticM Unit := do
         endPos := toString <| (← getFileMap).toPosition endPos
       }
       Lean.logInfo (toJson ti).pretty
+
+/- Check if some automated tactic can close the goal.
+If yes, trace it -/
+def checkAuto (stx : Syntax) : TacticM Unit := do
+  pure ()
+
+def trace (stx : Syntax) : TacticM Unit := do
+  traceMainInfo stx
+  checkAuto stx
+
+
+----------------------------------------------------------------------------------------------------
+
+partial def evalTactic (stx : Syntax) : TacticM Unit := do
+  trace stx
 
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
