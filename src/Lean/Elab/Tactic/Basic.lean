@@ -140,9 +140,10 @@ structure EvalTacticFailure where
   state : SavedState
 
 structure TraceInfo where
-  proofState: String
-  proofStep: String
-  stxKind: String
+  proofState : String
+  proofStep : String
+  stxKind : String
+  fileName : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -218,7 +219,8 @@ where
       let ti : TraceInfo := {
         proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty,
         proofStep := proofStep,
-        stxKind := stx.getKind.toString
+        stxKind := stx.getKind.toString,
+        fileName := ← getFileName
       }
       Lean.logInfo (toJson ti).pretty
 
