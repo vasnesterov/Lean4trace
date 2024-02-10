@@ -149,36 +149,38 @@ structure TraceInfo where
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
-  let ci : ContextInfo := {
-    env := ← getEnv,
-    fileMap := ← getFileMap,
-    mctx := ← getMCtx,
-    options := ← getOptions,
-    currNamespace := ← getCurrNamespace,
-    openDecls := ← getOpenDecls,
-    ngen := ← getNGen
-  }
-
-  let mut proofStep : String := "<parsing problem>"
-  try
-    proofStep := (← PrettyPrinter.formatTerm stx).pretty
-  catch _ => pure ()
-
   let startPos := stx.getPos? (canonicalOnly := true)
   let endPos := stx.getTailPos? (canonicalOnly := true)
   match startPos, endPos with
   | none, _ => pure ()
   | some _, none => pure ()
   | some startPos, some endPos =>
-    let ti : TraceInfo := {
-      proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-      proofStep := proofStep
-      stxKind := stx.getKind.toString
-      fileName := ← getFileName
-      startPos := toString <| (← getFileMap).toPosition startPos
-      endPos := toString <| (← getFileMap).toPosition endPos
-    }
-    Lean.logInfo (toJson ti).pretty
+    let stxKind := stx.getKind
+    if stxKind != `Lean.Parser.Tactic.tacticSeq1Indented ∧ stxKind != `Lean.Parser.Tactic.tacticSeq then
+      let ci : ContextInfo := {
+        env := ← getEnv,
+        fileMap := ← getFileMap,
+        mctx := ← getMCtx,
+        options := ← getOptions,
+        currNamespace := ← getCurrNamespace,
+        openDecls := ← getOpenDecls,
+        ngen := ← getNGen
+      }
+
+      let mut proofStep : String := "<parsing problem>"
+      try
+        proofStep := (← PrettyPrinter.formatTerm stx).pretty
+      catch _ => pure ()
+
+      let ti : TraceInfo := {
+        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+        proofStep := proofStep
+        stxKind := stxKind.toString
+        fileName := ← getFileName
+        startPos := toString <| (← getFileMap).toPosition startPos
+        endPos := toString <| (← getFileMap).toPosition endPos
+      }
+      Lean.logInfo (toJson ti).pretty
 
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
