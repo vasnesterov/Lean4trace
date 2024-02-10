@@ -139,6 +139,12 @@ structure EvalTacticFailure where
   exception : Exception
   state : SavedState
 
+structure TraceInfo where
+  proofState: String
+  proofStep: String
+  stxKind: String
+deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
@@ -203,20 +209,18 @@ where
         openDecls := ← getOpenDecls,
         ngen := ← getNGen
       }
-      let kind := stx.getKind
-      if kind != "Lean.Parser.Tactic.tacticSeq1Indented" ∧ kind != "Lean.Parser.Tactic.tacticSeq" then
-        let goals ← getUnsolvedGoals
-        Lean.logInfo "<evalTactic.eval>"
-        Lean.logInfo s!"filename = {← getFileName}"
-        Lean.logInfo s!"stx.getKind = {kind}"
-        -- Lean.logInfo s!"n_goals = {goals.length}"
-        Lean.logInfo "GOALS:"
-        Lean.logInfo (← ci.ppGoals goals)
-        Lean.logInfo "TACTIC:"
-        try
-          Lean.logInfo (← PrettyPrinter.formatTerm stx)
-        catch _ => Lean.logInfo "stx problem"
-        Lean.logInfo "</evalTactic.eval>"
+
+      let mut proofStep : String := "<parsing problem>"
+      try
+        proofStep := (← PrettyPrinter.formatTerm stx).pretty
+      catch _ => pure ()
+
+      let ti : TraceInfo := {
+        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty,
+        proofStep := proofStep,
+        stxKind := stx.getKind.toString
+      }
+      Lean.logInfo (toJson ti).pretty
 
       match evalFns with
       | []              => throwExs failures
