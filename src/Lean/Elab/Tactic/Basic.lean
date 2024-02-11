@@ -227,9 +227,9 @@ where
 
       let s ← Tactic.saveState
       try
-        withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
+        withAtLeastMaxRecDepth 32768 <| withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
         if (← getUnsolvedGoals).isEmpty then
-          -- Lean.logInfo "simp [*] has closed the goal!"
+          Lean.logInfo "simp [*] has closed the goal!"
           let ci : ContextInfo := {
             env := ← getEnv
             fileMap := ← getFileMap
@@ -247,7 +247,7 @@ where
           Lean.logInfo (toJson ti).pretty
       catch _ => pure ()
       finally
-        s.restore
+        s.restore (restoreInfo := true)
 
       -- IO.println s!"inside checkAuto: out"
 
