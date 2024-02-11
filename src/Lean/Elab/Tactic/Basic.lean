@@ -147,65 +147,36 @@ structure TraceInfo where
   proofState : String
   proofStep : String
   stxKind : String
+deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+
+structure CanonicalTraceInfo extends TraceInfo where
   fileName : String
   startPos : String
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
-
 /- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
-def traceMainInfo (stx : Syntax) : TacticM Unit := do
-  let ignoredStxKinds : Array Name :=
-    #[`Lean.Parser.Tactic.tacticSeq1Indented, `Lean.Parser.Tactic.tacticSeq]
-
-  let startPos := stx.getPos? (canonicalOnly := true)
-  let endPos := stx.getTailPos? (canonicalOnly := true)
-  match startPos, endPos with
-  | none, _ => pure ()
-  | some _, none => pure ()
-  | some startPos, some endPos =>
-    let stxKind := stx.getKind
-    if ¬ ignoredStxKinds.contains stxKind then
-      let ci : ContextInfo := {
-        env := ← getEnv,
-        fileMap := ← getFileMap,
-        mctx := ← getMCtx,
-        options := ← getOptions,
-        currNamespace := ← getCurrNamespace,
-        openDecls := ← getOpenDecls,
-        ngen := ← getNGen
-      }
-
+def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
       let mut proofStep : String := "<parsing problem>"
       try
         proofStep := (← PrettyPrinter.formatTerm stx).pretty
       catch _ => pure ()
 
-      let ti : TraceInfo := {
+      let ti : CanonicalTraceInfo := {
         proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
         proofStep := proofStep
-        stxKind := stxKind.toString
+        stxKind := stx.getKind.toString
         fileName := ← getFileName
         startPos := toString <| (← getFileMap).toPosition startPos
         endPos := toString <| (← getFileMap).toPosition endPos
       }
       Lean.logInfo (toJson ti).pretty
-
-/- Check if some automated tactic can close the goal.
-If yes, trace it -/
-def checkAuto (stx : Syntax) : TacticM Unit := do
-  pure ()
-
-def trace (stx : Syntax) : TacticM Unit := do
-  traceMainInfo stx
-  checkAuto stx
-
-
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
-  trace stx
+  if (← getBoolOption `_doTracing true) then
+    trace stx
 
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
@@ -223,6 +194,58 @@ partial def evalTactic (stx : Syntax) : TacticM Unit := do
     | .missing => pure ()
     | _ => throwError m!"unexpected tactic{indentD stx}"
 where
+    trace (stx : Syntax) : TacticM Unit := do
+      let ignoredStxKinds : Array Name :=
+        #[`Lean.Parser.Tactic.tacticSeq1Indented, `Lean.Parser.Tactic.tacticSeq]
+
+      let startPos := stx.getPos? (canonicalOnly := true)
+      let endPos := stx.getTailPos? (canonicalOnly := true)
+      match startPos, endPos with
+      | none, _ => pure ()
+      | some _, none => pure ()
+      | some startPos, some endPos =>
+        let stxKind := stx.getKind
+        if ¬ ignoredStxKinds.contains stxKind then
+          let ci : ContextInfo := {
+            env := ← getEnv,
+            fileMap := ← getFileMap,
+            mctx := ← getMCtx,
+            options := ← getOptions,
+            currNamespace := ← getCurrNamespace,
+            openDecls := ← getOpenDecls,
+            ngen := ← getNGen
+          }
+          traceCanonicalInfo stx startPos endPos ci
+          withOptions (fun o => o.setBool `_doTracing false) checkAuto
+
+    /- Check if some automated tactic can close the goal.
+    If yes, trace it -/
+    checkAuto : TacticM Unit := do
+      let s ← Tactic.saveState
+      let autoStx := ← `(tactic| simp [*])
+      try
+        evalTactic autoStx
+        let gs ← getUnsolvedGoals
+        if gs.isEmpty then
+          s.restore
+          -- Lean.logInfo "simp [*] closed the goal!"
+          let ci : ContextInfo := {
+            env := ← getEnv,
+            fileMap := ← getFileMap,
+            mctx := ← getMCtx,
+            options := ← getOptions,
+            currNamespace := ← getCurrNamespace,
+            openDecls := ← getOpenDecls,
+            ngen := ← getNGen
+          }
+          let ti : TraceInfo := {
+            proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+            proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
+            stxKind := autoStx.raw.getKind.toString
+          }
+          Lean.logInfo (toJson ti).pretty
+      catch _ => s.restore
+
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
      if let some fail := failures[0]? then
        -- Recall that `failures[0]` is the highest priority evalFn/macro
@@ -249,7 +272,8 @@ where
         else
           throw ex -- (*)
 
-    expandEval (s : SavedState) (macros : List _) (evalFns : List _) (failures : Array EvalTacticFailure) : TacticM Unit :=
+    expandEval (s : SavedState) (macros : List _) (evalFns : List _) (failures : Array EvalTacticFailure) : TacticM Unit := do
+      --IO.println s!"inside expandEval doTracing={doTracing}"
       match macros with
       | [] => eval s evalFns failures
       | m :: ms =>
@@ -257,6 +281,7 @@ where
           withReader ({ · with elaborator := m.declName }) do
             withTacticInfoContext stx do
               let stx' ← adaptMacro m.value stx
+              --IO.println s!"expandEval calls evalTactic; doTracing={doTracing}"
               evalTactic stx'
         catch ex => handleEx s failures ex (expandEval s ms evalFns)
 
