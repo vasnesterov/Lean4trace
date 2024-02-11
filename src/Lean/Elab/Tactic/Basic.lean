@@ -217,36 +217,38 @@ where
             ngen := ← getNGen
           }
           traceCanonicalInfo stx startPos endPos ci
-          withOptions (fun o => o.setBool `_doTracing false) checkAuto
+          checkAuto
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
     checkAuto : TacticM Unit := do
       -- IO.println s!"inside checkAuto: {← getBoolOption `_doTracing true}"
-      let autoStx := ← `(tactic| try (rfl; done))
+      let autoStx := ← `(tactic| rfl)
 
       let s ← Tactic.saveState
-      evalTactic autoStx
-      let done : Bool := (← getUnsolvedGoals).isEmpty
-      s.restore
+      try
+        withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
+        if (← getUnsolvedGoals).isEmpty then
+          -- Lean.logInfo "simp [*] has closed the goal!"
+          let ci : ContextInfo := {
+            env := ← getEnv
+            fileMap := ← getFileMap
+            mctx := ← getMCtx
+            options := ← getOptions
+            currNamespace := ← getCurrNamespace
+            openDecls := ← getOpenDecls
+            ngen := ← getNGen
+          }
+          let ti : TraceInfo := {
+            proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+            proofStep := (← PrettyPrinter.formatTerm stx).pretty
+            stxKind := autoStx.raw.getKind.toString
+          }
+          Lean.logInfo (toJson ti).pretty
+      catch _ => pure ()
+      finally
+        s.restore
 
-      if done then
-        -- Lean.logInfo "simp [*] has closed the goal!"
-        let ci : ContextInfo := {
-          env := ← getEnv,
-          fileMap := ← getFileMap,
-          mctx := ← getMCtx,
-          options := ← getOptions,
-          currNamespace := ← getCurrNamespace,
-          openDecls := ← getOpenDecls,
-          ngen := ← getNGen
-        }
-        let ti : TraceInfo := {
-          proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-          proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
-          stxKind := autoStx.raw.getKind.toString
-        }
-        Lean.logInfo (toJson ti).pretty
       -- IO.println s!"inside checkAuto: out"
 
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
