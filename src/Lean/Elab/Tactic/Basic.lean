@@ -223,7 +223,8 @@ where
     If yes, trace it -/
     checkAuto (ci : ContextInfo) : TacticM Unit := do
       -- IO.println s!"inside checkAuto: {← getBoolOption `_doTracing true}"
-      let autoStx := ← `(tactic| simp (config := { memoize := false}) [*])
+
+      let autoStx := ← `(tactic| simp [*])
       let ti : TraceInfo := {
         proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
         proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
@@ -233,7 +234,8 @@ where
       let s ← Tactic.saveState
       let traceState ← getTraceState -- We do backtrack trace message
       try
-        withAtLeastMaxRecDepth 32768 <| withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
+        withAtLeastMaxRecDepth 32768 <| withoutModifyingEnv <|
+          withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
         if (← getUnsolvedGoals).isEmpty then
           IO.println "auto has closed the goal!"
           IO.println (toJson ti).pretty
@@ -245,7 +247,7 @@ where
         s.restore (restoreInfo := true)
         setTraceState traceState
 
-      IO.println s!"inside checkAuto: out"
+      -- IO.println s!"inside checkAuto: out"
 
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
      if let some fail := failures[0]? then
