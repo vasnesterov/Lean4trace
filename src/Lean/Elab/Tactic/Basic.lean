@@ -171,7 +171,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
         startPos := toString <| (← getFileMap).toPosition startPos
         endPos := toString <| (← getFileMap).toPosition endPos
       }
-      Lean.logInfo (toJson ti).pretty
+      IO.println (toJson ti).pretty
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -217,39 +217,33 @@ where
             ngen := ← getNGen
           }
           traceCanonicalInfo stx startPos endPos ci
-          checkAuto
+          checkAuto ci
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
-    checkAuto : TacticM Unit := do
+    checkAuto (ci : ContextInfo) : TacticM Unit := do
       -- IO.println s!"inside checkAuto: {← getBoolOption `_doTracing true}"
-      let autoStx := ← `(tactic| rfl)
+      let autoStx := ← `(tactic| simp)
+      let ti : TraceInfo := {
+        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+        proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
+        stxKind := autoStx.raw.getKind.toString
+      }
 
       let s ← Tactic.saveState
       try
         withAtLeastMaxRecDepth 32768 <| withOptions (fun o => o.setBool `_doTracing false) <| evalTactic autoStx
         if (← getUnsolvedGoals).isEmpty then
-          Lean.logInfo "simp [*] has closed the goal!"
-          let ci : ContextInfo := {
-            env := ← getEnv
-            fileMap := ← getFileMap
-            mctx := ← getMCtx
-            options := ← getOptions
-            currNamespace := ← getCurrNamespace
-            openDecls := ← getOpenDecls
-            ngen := ← getNGen
-          }
-          let ti : TraceInfo := {
-            proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-            proofStep := (← PrettyPrinter.formatTerm stx).pretty
-            stxKind := autoStx.raw.getKind.toString
-          }
-          Lean.logInfo (toJson ti).pretty
-      catch _ => pure ()
+          IO.println "auto has closed the goal!"
+          IO.println (toJson ti).pretty
+        else
+          IO.println "useless auto : else"
+      catch _ =>
+        IO.println "useless auto : catch"
       finally
         s.restore (restoreInfo := true)
 
-      -- IO.println s!"inside checkAuto: out"
+      IO.println s!"inside checkAuto: out"
 
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
      if let some fail := failures[0]? then

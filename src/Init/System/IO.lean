@@ -568,6 +568,7 @@ def withStderr [Monad m] [MonadFinally m] [MonadLiftT BaseIO m] (h : FS.Stream) 
 def print [ToString α] (s : α) : IO Unit := do
   let out ← getStdout
   out.putStr <| toString s
+  out.flush
 
 def println [ToString α] (s : α) : IO Unit :=
   print ((toString s).push '\n')
