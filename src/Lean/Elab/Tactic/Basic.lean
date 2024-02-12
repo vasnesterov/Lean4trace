@@ -260,8 +260,8 @@ where
             IO.println (toJson ti).pretty
           else
             IO.println "useless auto : else"
-        catch _ =>
-          IO.println "useless auto : catch"
+        catch ex =>
+          IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
         finally
           s.restore (restoreInfo := true)
           setTraceState traceState
