@@ -230,42 +230,43 @@ where
         stxKind := autoStx.raw.getKind.toString
       }
 
-      let mhb := (← read (m := CoreM)).maxHeartbeats
+      -- let mhb := (← read (m := CoreM)).maxHeartbeats
 
-      let coreState := ← get (m := CoreM)
-      let metaState := ← get (m := MetaM)
-      let elabState := ← get (m := TermElabM)
-      let tacticState := ← get
+      -- let coreState := ← get (m := CoreM)
+      -- let metaState := ← get (m := MetaM)
+      -- let elabState := ← get (m := TermElabM)
+      -- let tacticState := ← get
 
-      let coreCtx := ← read (m := CoreM)
-      let metaCtx := ← read (m := MetaM)
-      let elabCtx := ← read (m := TermElabM)
-      let tacticCtx := ← read
+      -- let coreCtx := ← read (m := CoreM)
+      -- let metaCtx := ← read (m := MetaM)
+      -- let elabCtx := ← read (m := TermElabM)
+      -- let tacticCtx := ← read
 
-      withCurrHeartbeats do
-      withReader (m := CoreM) (fun ctx => { ctx with maxHeartbeats := mhb / 4 }) do
-      -- withReader (m := CoreM) (fun ctx => ctx) do
-      MetaM.run' (ctx := metaCtx) (s := metaState) do
-      Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
-      TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
-        let s ← Tactic.saveState
-        let traceState ← getTraceState -- We do backtrack trace message
-        try
-          withAtLeastMaxRecDepth 32768 <| withoutModifyingEnv <|
-            withOptions (fun o =>
-              o.setBool `_doTracing false) <|
-            evalTactic autoStx
-          if (← getUnsolvedGoals).isEmpty then
-            IO.println "auto has closed the goal!"
-            IO.println (toJson ti).pretty
-          else
-            IO.println "useless auto : else"
-        catch ex =>
-          IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
-          IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
-        finally
-          s.restore (restoreInfo := true)
-          setTraceState traceState
+      -- withCurrHeartbeats do
+      -- withReader (m := CoreM) (fun ctx => { ctx with maxHeartbeats := mhb / 4 }) do
+      -- -- withReader (m := CoreM) (fun ctx => ctx) do
+      -- MetaM.run' (ctx := metaCtx) (s := metaState) do
+      -- Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
+      -- TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
+      let s ← Tactic.saveState
+      let traceState ← getTraceState -- We do backtrack trace message
+      try
+        withAtLeastMaxRecDepth 32768 <| withoutModifyingEnv <|
+          withOptions (fun o =>
+            o.setBool `_doTracing false) <|
+          evalTactic autoStx
+        if (← getUnsolvedGoals).isEmpty then
+          IO.println "auto has closed the goal!"
+          IO.println (toJson ti).pretty
+        else
+          IO.println "useless auto : else"
+      catch ex =>
+        IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
+        IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
+      finally
+        s.restore (restoreInfo := true)
+        setTraceState traceState
+        Core.resetInitHeartbeats
 
       -- IO.println s!"inside checkAuto: out"
 

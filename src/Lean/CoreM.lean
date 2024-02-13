@@ -48,6 +48,9 @@ structure State where
   messages        : MessageLog     := {}
   /-- Info tree. We have the info tree here because we want to update it while adding attributes. -/
   infoState       : Elab.InfoState := {}
+  /-- Moved from Context to State. Because we want to reset it, and don't want to count time of
+  our tracing -/
+  initHeartbeats : Nat := 0
   deriving Nonempty
 
 /-- Context for the CoreM monad. -/
@@ -62,9 +65,9 @@ structure Context where
   ref            : Syntax := Syntax.missing
   currNamespace  : Name := Name.anonymous
   openDecls      : List OpenDecl := []
-  initHeartbeats : Nat := 0
   maxHeartbeats  : Nat := getMaxHeartbeats options
   currMacroScope : MacroScope := firstFrontendMacroScope
+  initHeartbeats : Nat := 0
   /--
   If `catchRuntimeEx = false`, then given `try x catch ex => h ex`,
   an runtime exception occurring in `x` is not handled by `h`.
@@ -135,7 +138,7 @@ instance : Elab.MonadInfoTree CoreM where
   modifyInfoState f := modify fun s => { s with infoState := f s.infoState }
 
 @[inline] def modifyCache (f : Cache → Cache) : CoreM Unit :=
-  modify fun ⟨env, next, ngen, trace, cache, messages, infoState⟩ => ⟨env, next, ngen, trace, f cache, messages, infoState⟩
+  modify fun ⟨env, next, ngen, trace, cache, messages, infoState, initHeartbeats⟩ => ⟨env, next, ngen, trace, f cache, messages, infoState, initHeartbeats⟩
 
 @[inline] def modifyInstLevelTypeCache (f : InstantiateLevelCache → InstantiateLevelCache) : CoreM Unit :=
   modifyCache fun ⟨c₁, c₂⟩ => ⟨f c₁, c₂⟩
@@ -190,7 +193,7 @@ def mkFreshUserName (n : Name) : CoreM Name :=
   Prod.fst <$> x.run ctx s
 
 @[inline] def CoreM.toIO (x : CoreM α) (ctx : Context) (s : State) : IO (α × State) := do
-  match (← (x.run { ctx with initHeartbeats := (← IO.getNumHeartbeats) } s).toIO') with
+  match (← (x.run ctx {s with initHeartbeats := (← IO.getNumHeartbeats) }).toIO') with
   | Except.error (Exception.error _ msg)   => throw <| IO.userError (← msg.toString)
   | Except.error (Exception.internal id _) => throw <| IO.userError <| "internal exception #" ++ toString id.idx
   | Except.ok a                            => return a
@@ -217,7 +220,7 @@ def throwMaxHeartbeat (moduleName : Name) (optionName : Name) (max : Nat) : Core
 def checkMaxHeartbeatsCore (moduleName : String) (optionName : Name) (max : Nat) : CoreM Unit := do
   unless max == 0 do
     let numHeartbeats ← IO.getNumHeartbeats
-    if numHeartbeats - (← read).initHeartbeats > 8 * max then
+    if numHeartbeats - (← get).initHeartbeats > 8 * max then
       throwMaxHeartbeat moduleName optionName max
 
 def checkMaxHeartbeats (moduleName : String) : CoreM Unit := do
@@ -228,8 +231,18 @@ def checkSystem (moduleName : String) : CoreM Unit := do
   checkInterrupted
   checkMaxHeartbeats moduleName
 
+def setInitHeartbeats (value : Nat) : CoreM Unit :=
+  modify fun s => { s with initHeartbeats := value }
+
+def resetInitHeartbeats : CoreM Unit := do
+  setInitHeartbeats (← IO.getNumHeartbeats)
+
+def getInitHeartbeats : CoreM Nat :=
+  return (← get).initHeartbeats
+
 private def withCurrHeartbeatsImp (x : CoreM α) : CoreM α := do
   let heartbeats ← IO.getNumHeartbeats
+  setInitHeartbeats heartbeats
   withReader (fun ctx => { ctx with initHeartbeats := heartbeats }) x
 
 def withCurrHeartbeats [Monad m] [MonadControlT CoreM m] (x : m α) : m α :=
@@ -256,7 +269,7 @@ instance : MonadLog CoreM where
 
 end Core
 
-export Core (CoreM mkFreshUserName checkSystem withCurrHeartbeats)
+export Core (CoreM mkFreshUserName checkSystem resetInitHeartbeats withCurrHeartbeats)
 
 @[inline] def withAtLeastMaxRecDepth [MonadFunctorT CoreM m] (max : Nat) : m α → m α :=
   monadMap (m := CoreM) <| withReader (fun ctx => { ctx with maxRecDepth := Nat.max max ctx.maxRecDepth })
