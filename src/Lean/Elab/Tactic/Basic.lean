@@ -228,7 +228,7 @@ where
     checkAuto (ci : ContextInfo) : TacticM Unit := do
       -- IO.println s!"inside checkAuto: {← getBoolOption `_doTracing true}"
 
-      let autoStx := ← `(tactic| simp [*])
+      let autoStx := ← `(tactic| simp (config := { maxSteps := 400 }) [*])
       let ti : TraceInfo := {
         proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
         proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
@@ -237,26 +237,28 @@ where
 
       -- let mhb := (← read (m := CoreM)).maxHeartbeats
 
-      -- let coreState := ← get (m := CoreM)
-      -- let metaState := ← get (m := MetaM)
-      -- let elabState := ← get (m := TermElabM)
-      -- let tacticState := ← get
+      let coreState := ← get (m := CoreM)
+      let metaState := ← get (m := MetaM)
+      let elabState := ← get (m := TermElabM)
+      let tacticState := ← get
 
-      -- let coreCtx := ← read (m := CoreM)
-      -- let metaCtx := ← read (m := MetaM)
-      -- let elabCtx := ← read (m := TermElabM)
-      -- let tacticCtx := ← read
+      let coreCtx := ← read (m := CoreM)
+      let metaCtx := ← read (m := MetaM)
+      let elabCtx := ← read (m := TermElabM)
+      let tacticCtx := ← read
 
       -- withCurrHeartbeats do
       -- withReader (m := CoreM) (fun ctx => { ctx with maxHeartbeats := mhb / 4 }) do
-      -- -- withReader (m := CoreM) (fun ctx => ctx) do
-      -- MetaM.run' (ctx := metaCtx) (s := metaState) do
-      -- Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
-      -- TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
-      let s ← Tactic.saveState
-      let traceState ← getTraceState -- We do backtrack trace message
+      -- withReader (m := CoreM) (fun ctx => ctx) do
+
+      -- let s ← Tactic.saveState
+      -- let traceState ← getTraceState -- We do backtrack trace message
       try
-        withAtLeastMaxRecDepth 32768 <| withoutModifyingEnv <|
+        Core.CoreM.run' (ctx := coreCtx) (s := coreState) do
+        MetaM.run' (ctx := metaCtx) (s := metaState) do
+        Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
+        TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
+        withAtLeastMaxRecDepth 32768 <|
           withOptions (fun o =>
             o.setBool `_doTracing false) <|
           evalTactic autoStx
@@ -267,10 +269,10 @@ where
           IO.println "useless auto : else"
       catch ex =>
         IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
-        IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
+        -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
       finally
-        s.restore (restoreInfo := true)
-        setTraceState traceState
+        -- s.restore (restoreInfo := true)
+        -- setTraceState traceState
         Core.resetInitHeartbeats
 
       -- IO.println s!"inside checkAuto: out"
