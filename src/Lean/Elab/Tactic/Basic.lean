@@ -262,6 +262,7 @@ where
             IO.println "useless auto : else"
         catch ex =>
           IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
+          IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
         finally
           s.restore (restoreInfo := true)
           setTraceState traceState
