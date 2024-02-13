@@ -157,20 +157,25 @@ deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 /- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
 def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
-      let mut proofStep : String := "<parsing problem>"
-      try
-        proofStep := (← PrettyPrinter.formatTerm stx).pretty
-      catch _ => pure ()
+  let mut proofStep : String := "<parsing problem>"
+  try
+    proofStep := (← PrettyPrinter.formatTerm stx).pretty
+  catch _ => pure ()
 
-      let ti : CanonicalTraceInfo := {
-        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-        proofStep := proofStep
-        stxKind := stx.getKind.toString
-        fileName := ← getFileName
-        startPos := toString <| (← getFileMap).toPosition startPos
-        endPos := toString <| (← getFileMap).toPosition endPos
-      }
-      IO.println (toJson ti).pretty
+  let ti : CanonicalTraceInfo := {
+    proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+    proofStep := proofStep
+    stxKind := stx.getKind.toString
+    fileName := ← getFileName
+    startPos := toString <| (← getFileMap).toPosition startPos
+    endPos := toString <| (← getFileMap).toPosition endPos
+  }
+  let json := (toJson ti).pretty
+  IO.println json
+  /- log to file -/
+  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  h.putStr <| json.push '\n'
+  h.flush
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
