@@ -228,44 +228,55 @@ where
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
     checkAuto (ci : ContextInfo) : TacticM Unit := do
-      let autoStx := ← `(tactic| simp (config := { maxSteps := 400 }) [*])
-      let ti : TraceInfo := {
-        source := "checkAuto"
-        proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-        proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
-        stxKind := autoStx.raw.getKind.toString
-      }
+      let autos_str := #[
+        "simp (config := { maxSteps := 400 }) [*]"
+        -- "aesop",
+        -- "tauto"
+      ]
 
-      let coreState := ← get (m := CoreM)
-      let metaState := ← get (m := MetaM)
-      let elabState := ← get (m := TermElabM)
-      let tacticState := ← get
+      let autos := autos_str.filterMap (fun str =>
+        match Lean.Parser.runParserCategory ci.env `tactic str with
+        | .error _ => none
+        | .ok y => y
+      )
+      for autoStx in autos do
+        let ti : TraceInfo := {
+          source := "checkAuto"
+          proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+          proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
+          stxKind := autoStx.getKind.toString
+        }
 
-      let coreCtx := ← read (m := CoreM)
-      let metaCtx := ← read (m := MetaM)
-      let elabCtx := ← read (m := TermElabM)
-      let tacticCtx := ← read
+        let coreState := ← get (m := CoreM)
+        let metaState := ← get (m := MetaM)
+        let elabState := ← get (m := TermElabM)
+        let tacticState := ← get
 
-      try
-        Core.CoreM.run' (ctx := coreCtx) (s := coreState) do
-        MetaM.run' (ctx := metaCtx) (s := metaState) do
-        Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
-        TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
-        withAtLeastMaxRecDepth 32768 <|
-          withOptions (fun o =>
-            o.setBool `_doTracing false) <|
-          evalTactic autoStx
-        if (← getUnsolvedGoals).isEmpty then
-          -- IO.println "auto has closed the goal!"
-          IO.println (toJson ti).pretty
-        -- else
-        --   IO.println "useless auto : else"
-      catch ex =>
-        pure ()
-        -- IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
-        -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
-      finally
-        Core.resetInitHeartbeats
+        let coreCtx := ← read (m := CoreM)
+        let metaCtx := ← read (m := MetaM)
+        let elabCtx := ← read (m := TermElabM)
+        let tacticCtx := ← read
+
+        try
+          Core.CoreM.run' (ctx := coreCtx) (s := coreState) do
+          MetaM.run' (ctx := metaCtx) (s := metaState) do
+          Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
+          TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
+          withAtLeastMaxRecDepth 32768 <|
+            withOptions (fun o =>
+              o.setBool `_doTracing false) <|
+            evalTactic autoStx
+          if (← getUnsolvedGoals).isEmpty then
+            -- IO.println "auto has closed the goal!"
+            IO.println (toJson ti).pretty
+          -- else
+          --   IO.println "useless auto : else"
+        catch ex =>
+          pure ()
+          -- IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
+          -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
+        finally
+          Core.resetInitHeartbeats
 
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
      if let some fail := failures[0]? then
