@@ -229,9 +229,9 @@ where
     If yes, trace it -/
     checkAuto (ci : ContextInfo) : TacticM Unit := do
       let autos_str := #[
-        "simp (config := { maxSteps := 400 }) [*]"
-        -- "aesop",
-        -- "tauto"
+        "simp (config := { maxSteps := 400 }) [*]",
+        "aesop",
+        "tauto"
       ]
 
       let autos := autos_str.filterMap (fun str =>
