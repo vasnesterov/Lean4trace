@@ -143,6 +143,7 @@ structure EvalTacticFailure where
 Functions for tracing. Will be moved to another file -/
 
 structure TraceInfo where
+  source : String
   proofState : String
   proofStep : String
   stxKind : String
@@ -163,6 +164,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
   catch _ => pure ()
 
   let ti : CanonicalTraceInfo := {
+    source := "canonical"
     proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
     stxKind := stx.getKind.toString
@@ -173,9 +175,9 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
   let json := (toJson ti).pretty
   IO.println json
   /- log to file -/
-  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  h.putStr <| json.push '\n'
-  h.flush
+  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  -- h.putStr <| json.push '\n'
+  -- h.flush
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -226,16 +228,13 @@ where
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
     checkAuto (ci : ContextInfo) : TacticM Unit := do
-      -- IO.println s!"inside checkAuto: {← getBoolOption `_doTracing true}"
-
       let autoStx := ← `(tactic| simp (config := { maxSteps := 400 }) [*])
       let ti : TraceInfo := {
+        source := "checkAuto"
         proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
         proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
         stxKind := autoStx.raw.getKind.toString
       }
-
-      -- let mhb := (← read (m := CoreM)).maxHeartbeats
 
       let coreState := ← get (m := CoreM)
       let metaState := ← get (m := MetaM)
@@ -247,12 +246,6 @@ where
       let elabCtx := ← read (m := TermElabM)
       let tacticCtx := ← read
 
-      -- withCurrHeartbeats do
-      -- withReader (m := CoreM) (fun ctx => { ctx with maxHeartbeats := mhb / 4 }) do
-      -- withReader (m := CoreM) (fun ctx => ctx) do
-
-      -- let s ← Tactic.saveState
-      -- let traceState ← getTraceState -- We do backtrack trace message
       try
         Core.CoreM.run' (ctx := coreCtx) (s := coreState) do
         MetaM.run' (ctx := metaCtx) (s := metaState) do
@@ -263,19 +256,16 @@ where
             o.setBool `_doTracing false) <|
           evalTactic autoStx
         if (← getUnsolvedGoals).isEmpty then
-          IO.println "auto has closed the goal!"
+          -- IO.println "auto has closed the goal!"
           IO.println (toJson ti).pretty
-        else
-          IO.println "useless auto : else"
+        -- else
+        --   IO.println "useless auto : else"
       catch ex =>
-        IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
+        pure ()
+        -- IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
         -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
       finally
-        -- s.restore (restoreInfo := true)
-        -- setTraceState traceState
         Core.resetInitHeartbeats
-
-      -- IO.println s!"inside checkAuto: out"
 
     throwExs (failures : Array EvalTacticFailure) : TacticM Unit := do
      if let some fail := failures[0]? then
