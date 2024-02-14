@@ -175,9 +175,9 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
   let json := (toJson ti).pretty
   IO.println json
   /- log to file -/
-  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  -- h.putStr <| json.push '\n'
-  -- h.flush
+  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  h.putStr <| json.push '\n'
+  h.flush
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -267,13 +267,13 @@ where
               o.setBool `_doTracing false) <|
             evalTactic autoStx
           if (← getUnsolvedGoals).isEmpty then
-            -- IO.println "auto has closed the goal!"
+            IO.println s!"auto ({autoStx.getKind.toString}) has closed the goal!"
             IO.println (toJson ti).pretty
-          -- else
-          --   IO.println "useless auto : else"
+          else
+            IO.println s!"useless auto ({autoStx.getKind.toString}) : else"
         catch ex =>
-          pure ()
-          -- IO.println s!"useless auto : catched {← ex.toMessageData.toString}"
+          -- pure ()
+          IO.println s!"useless auto ({autoStx.getKind.toString}) : catched {← ex.toMessageData.toString}"
           -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
         finally
           Core.resetInitHeartbeats
