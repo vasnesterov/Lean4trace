@@ -155,6 +155,12 @@ structure CanonicalTraceInfo extends TraceInfo where
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
+def mylog (s : String) : TacticM Unit := do
+  IO.println s
+  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  h.putStr <| s.push '\n'
+  h.flush
+
 /- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
 def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
@@ -173,11 +179,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     endPos := toString <| (← getFileMap).toPosition endPos
   }
   let json := (toJson ti).pretty
-  IO.println json
-  /- log to file -/
-  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  h.putStr <| json.push '\n'
-  h.flush
+  mylog json
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -229,8 +231,8 @@ where
     If yes, trace it -/
     checkAuto (ci : ContextInfo) : TacticM Unit := do
       let autos_str := #[
-        "simp (config := { maxSteps := 400 }) [*]",
-        "aesop",
+        -- "simp (config := { maxSteps := 400 }) [*]",
+        -- "aesop",
         "tauto"
       ]
 
@@ -267,14 +269,14 @@ where
               o.setBool `_doTracing false) <|
             evalTactic autoStx
           if (← getUnsolvedGoals).isEmpty then
-            IO.println s!"auto ({autoStx.getKind.toString}) has closed the goal!"
-            IO.println (toJson ti).pretty
+            mylog s!"auto ({autoStx.getKind.toString}) has closed the goal!"
+            mylog (toJson ti).pretty
           else
-            IO.println s!"useless auto ({autoStx.getKind.toString}) : else"
+            mylog s!"useless auto ({autoStx.getKind.toString}) : else"
         catch ex =>
           -- pure ()
-          IO.println s!"useless auto ({autoStx.getKind.toString}) : catched {← ex.toMessageData.toString}"
-          -- IO.println s!"currHeartbeats = {← IO.getNumHeartbeats}"
+          mylog s!"useless auto ({autoStx.getKind.toString}) : catched {← ex.toMessageData.toString}"
+          -- mylog s!"currHeartbeats = {← IO.getNumHeartbeats}"
         finally
           Core.resetInitHeartbeats
 
