@@ -260,8 +260,8 @@ where
         let elabCtx := ← read (m := TermElabM)
         let tacticCtx := ← read
 
-        try
-          Core.CoreM.run' (ctx := coreCtx) (s := coreState) <| withMaxHeartbeats 10000 do
+        withCatchingRuntimeEx try withoutCatchingRuntimeEx do
+          Core.CoreM.run' (ctx := coreCtx) (s := coreState) <| withMaxHeartbeats 100000 do
           MetaM.run' (ctx := metaCtx) (s := metaState) do
           Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
           TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do
