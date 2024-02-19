@@ -155,7 +155,7 @@ def liftCoreM (x : CoreM α) : CommandElabM α := do
   let heartbeats ← IO.getNumHeartbeats
   let Eα := Except Exception α
   let x : CoreM Eα := try let a ← x; pure <| Except.ok a catch ex => pure <| Except.error ex
-  let x : EIO Exception (Eα × Core.State) := (ReaderT.run x (mkCoreContext ctx s heartbeats)).run { env := s.env, ngen := s.ngen, traceState := s.traceState, messages := {}, infoState.enabled := s.infoState.enabled }
+  let x : EIO Exception (Eα × Core.State) := (ReaderT.run x (mkCoreContext ctx s heartbeats)).run { env := s.env, ngen := s.ngen, traceState := s.traceState, messages := {}, infoState.enabled := s.infoState.enabled, initHeartbeats := heartbeats }
   let (ea, coreS) ← liftM x
   modify fun s => { s with
     env := coreS.env
@@ -400,7 +400,7 @@ def liftTermElabM (x : TermElabM α) : CommandElabM α := do
   let x : TermElabM _  := withSaveInfoContext x
   let x : MetaM _      := (observing x).run (mkTermContext ctx s) { levelNames := scope.levelNames }
   let x : CoreM _      := x.run mkMetaContext {}
-  let x : EIO _ _      := x.run (mkCoreContext ctx s heartbeats) { env := s.env, ngen := s.ngen, nextMacroScope := s.nextMacroScope, infoState.enabled := s.infoState.enabled, traceState := s.traceState }
+  let x : EIO _ _      := x.run (mkCoreContext ctx s heartbeats) { env := s.env, ngen := s.ngen, nextMacroScope := s.nextMacroScope, infoState.enabled := s.infoState.enabled, traceState := s.traceState, initHeartbeats := heartbeats }
   let (((ea, _), _), coreS) ← liftEIO x
   modify fun s => { s with
     env               := coreS.env

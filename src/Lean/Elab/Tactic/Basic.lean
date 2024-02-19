@@ -65,6 +65,7 @@ def pruneSolvedGoals : TacticM Unit := do
 def getUnsolvedGoals : TacticM (List MVarId) := do
   pruneSolvedGoals
   getGoals
+
 @[inline] private def TacticM.runCore (x : TacticM α) (ctx : Context) (s : State) : TermElabM (α × State) :=
   x ctx |>.run s
 
@@ -267,7 +268,7 @@ where
           withAtLeastMaxRecDepth 32768 <|
             withOptions (fun o =>
               o.setBool `_doTracing false) <|
-            evalTactic autoStx
+            (do mylog "before eval"; evalTactic autoStx; mylog "after eval")
           if (← getUnsolvedGoals).isEmpty then
             mylog s!"auto ({autoStx.getKind.toString}) has closed the goal!"
             mylog (toJson ti).pretty

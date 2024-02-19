@@ -15,7 +15,7 @@ namespace Lean
 namespace Core
 
 register_builtin_option maxHeartbeats : Nat := {
-  defValue := 0 -- was 200000
+  defValue := 200000
   descr := "maximum amount of heartbeats per command. A heartbeat is number of (small) memory allocations (in thousands), 0 means no limit"
 }
 
@@ -193,7 +193,8 @@ def mkFreshUserName (n : Name) : CoreM Name :=
   Prod.fst <$> x.run ctx s
 
 @[inline] def CoreM.toIO (x : CoreM α) (ctx : Context) (s : State) : IO (α × State) := do
-  match (← (x.run ctx {s with initHeartbeats := (← IO.getNumHeartbeats) }).toIO') with
+  let heartbeats ← IO.getNumHeartbeats
+  match (← (x.run { ctx with initHeartbeats := heartbeats } { s with initHeartbeats := heartbeats }).toIO') with
   | Except.error (Exception.error _ msg)   => throw <| IO.userError (← msg.toString)
   | Except.error (Exception.internal id _) => throw <| IO.userError <| "internal exception #" ++ toString id.idx
   | Except.ok a                            => return a
@@ -221,6 +222,7 @@ def checkMaxHeartbeatsCore (moduleName : String) (optionName : Name) (max : Nat)
   unless max == 0 do
     let numHeartbeats ← IO.getNumHeartbeats
     if numHeartbeats - (← get).initHeartbeats > 4 * max then
+      dbg_trace "initHeartbeats read: {(← read).initHeartbeats}; get : {(← get).initHeartbeats}"
       throwMaxHeartbeat moduleName optionName max
 
 def checkMaxHeartbeats (moduleName : String) : CoreM Unit := do
@@ -241,9 +243,20 @@ def getInitHeartbeats : CoreM Nat :=
   return (← get).initHeartbeats
 
 private def withCurrHeartbeatsImp (x : CoreM α) : CoreM α := do
+  dbg_trace "withCurrHeartbeatsImp in: {(← get).initHeartbeats} {(← read).initHeartbeats}"
+  let initHeartbeatsWas := (← get).initHeartbeats
   let heartbeats ← IO.getNumHeartbeats
   setInitHeartbeats heartbeats
-  withReader (fun ctx => { ctx with initHeartbeats := heartbeats }) x
+  let mut result : Option α := none
+  try
+    result := some (← withReader (fun ctx => { ctx with initHeartbeats := heartbeats }) x)
+  catch ex => throw ex
+  finally
+    setInitHeartbeats initHeartbeatsWas
+    dbg_trace "withCurrHeartbeatsImp out: {(← get).initHeartbeats} {(← read).initHeartbeats}"
+  match result with
+  | .none => throwError "shouldn't be thrown"
+  | .some a => return a
 
 def withCurrHeartbeats [Monad m] [MonadControlT CoreM m] (x : m α) : m α :=
   controlAt CoreM fun runInBase => withCurrHeartbeatsImp (runInBase x)
