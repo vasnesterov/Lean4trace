@@ -261,7 +261,7 @@ where
         let tacticCtx := ← read
 
         try
-          Core.CoreM.run' (ctx := coreCtx) (s := coreState) do
+          Core.CoreM.run' (ctx := coreCtx) (s := coreState) <| withMaxHeartbeats 10000 do
           MetaM.run' (ctx := metaCtx) (s := metaState) do
           Term.TermElabM.run' (ctx := elabCtx) (s := elabState) do
           TacticM.runCore' (ctx := tacticCtx) (s := tacticState) do

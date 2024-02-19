@@ -243,23 +243,38 @@ def getInitHeartbeats : CoreM Nat :=
   return (← get).initHeartbeats
 
 private def withCurrHeartbeatsImp (x : CoreM α) : CoreM α := do
-  dbg_trace "withCurrHeartbeatsImp in: {(← get).initHeartbeats} {(← read).initHeartbeats}"
+  -- dbg_trace "withCurrHeartbeatsImp in: {(← get).initHeartbeats} {(← read).initHeartbeats}"
   let initHeartbeatsWas := (← get).initHeartbeats
   let heartbeats ← IO.getNumHeartbeats
   setInitHeartbeats heartbeats
   let mut result : Option α := none
   try
-    result := some (← withReader (fun ctx => { ctx with initHeartbeats := heartbeats }) x)
-  catch ex => throw ex
+    result ← withReader (fun ctx => { ctx with initHeartbeats := heartbeats }) x
   finally
     setInitHeartbeats initHeartbeatsWas
-    dbg_trace "withCurrHeartbeatsImp out: {(← get).initHeartbeats} {(← read).initHeartbeats}"
+    -- dbg_trace "withCurrHeartbeatsImp out: {(← get).initHeartbeats} {(← read).initHeartbeats}"
   match result with
   | .none => throwError "shouldn't be thrown"
   | .some a => return a
 
 def withCurrHeartbeats [Monad m] [MonadControlT CoreM m] (x : m α) : m α :=
   controlAt CoreM fun runInBase => withCurrHeartbeatsImp (runInBase x)
+
+private def withMaxHeartbeatsImp (n : Nat) (x : CoreM α) : CoreM α := do
+  let initHeartbeatsWas := (← get).initHeartbeats
+  let heartbeats ← IO.getNumHeartbeats
+  setInitHeartbeats heartbeats
+  let mut result : Option α := none
+  try
+    result ← withReader (fun ctx => { ctx with initHeartbeats := heartbeats, maxHeartbeats := n * 1000 }) x
+  finally
+    setInitHeartbeats initHeartbeatsWas
+  match result with
+  | .none => throwError "shouldn't be thrown"
+  | .some a => return a
+
+def withMaxHeartbeats [Monad m] [MonadControlT CoreM m] (n : Nat) (x : m α) : m α :=
+  controlAt CoreM fun runInBase => withMaxHeartbeatsImp n (runInBase x)
 
 def setMessageLog (messages : MessageLog) : CoreM Unit :=
   modify fun s => { s with messages := messages }
@@ -282,7 +297,7 @@ instance : MonadLog CoreM where
 
 end Core
 
-export Core (CoreM mkFreshUserName checkSystem resetInitHeartbeats withCurrHeartbeats)
+export Core (CoreM mkFreshUserName checkSystem resetInitHeartbeats withCurrHeartbeats withMaxHeartbeats)
 
 @[inline] def withAtLeastMaxRecDepth [MonadFunctorT CoreM m] (max : Nat) : m α → m α :=
   monadMap (m := CoreM) <| withReader (fun ctx => { ctx with maxRecDepth := Nat.max max ctx.maxRecDepth })
