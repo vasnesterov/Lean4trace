@@ -234,7 +234,7 @@ where
       let autos_str := #[
         -- "simp (config := { maxSteps := 400 }) [*]",
         -- "aesop",
-        "aesop"
+        "aesop (simp_config := {maxSteps := 4000})"
       ]
 
       let autos := autos_str.filterMap (fun str =>
