@@ -162,7 +162,7 @@ def mylog (s : String) : TacticM Unit := do
   h.putStr <| s.push '\n'
   h.flush
 
-/- Trace `TraceInfo` from current state. Basic function of tracing
+/-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
 def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
   let mut proofStep : String := "<parsing problem>"
@@ -181,6 +181,23 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
   }
   let json := (toJson ti).pretty
   mylog json
+
+structure BlacklistItem where
+  fileName : String
+  startPos : String
+  endPos : String
+deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr, BEq
+
+/-- Return `true` if given position is in the blacklist and we don't want to check auto here -/
+def checkBlacklist (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
+  let fileName ← getFileName
+  let startPos := toString <| (← getFileMap).toPosition startPos
+  let endPos := toString <| (← getFileMap).toPosition endPos
+
+  let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile "blacklist.json")
+  let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
+
+  return blacklist.contains ⟨fileName, startPos, endPos⟩
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -226,7 +243,10 @@ where
             ngen := ← getNGen
           }
           traceCanonicalInfo stx startPos endPos ci
-          checkAuto ci
+          if !(← checkBlacklist startPos endPos) then
+            checkAuto ci
+          else
+            mylog "I don't go. Blacklisted"
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
