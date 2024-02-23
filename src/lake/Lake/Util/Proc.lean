@@ -30,6 +30,22 @@ namespace Lake
   logProcCmd args log
   logProcOutput out logOutput
 
+def procUnsafe (args : IO.Process.SpawnArgs) (quiet := false) : LogIO Unit := do
+  for _ in [0:1000] do
+    match (← IO.Process.output args |>.toBaseIO) with
+    | .ok out =>
+      if out.exitCode = 0 then
+        logProcWith args out logVerbose (logOutput := if quiet then logVerbose else logInfo)
+      else
+        if out.exitCode == 143 then
+          continue
+        else
+          logProcWith args out logError
+          error s!"external command `{args.cmd}` exited with code {out.exitCode}"
+    | .error err =>
+      error s!"failed to execute `{args.cmd}`: {err}"
+    return
+
 def proc (args : IO.Process.SpawnArgs) (quiet := false) : LogIO Unit := do
   match (← IO.Process.output args |>.toBaseIO) with
   | .ok out =>

@@ -37,7 +37,7 @@ def compileLeanModule (name : String) (leanFile : FilePath)
     args := args ++ #["-b", bcFile.toString]
   for dynlib in dynlibs do
     args := args.push s!"--load-dynlib={dynlib}"
-  proc {
+  procUnsafe {
     args
     cmd := lean.toString
     env := #[
