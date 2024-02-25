@@ -185,12 +185,13 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
 
 structure BlacklistItem where
   fileName : String
+  proofStep : String
   startPos : String
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr, BEq
 
 /-- Return `true` if given position is in the blacklist and we don't want to check auto here -/
-def checkBlacklist (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
+def checkBlacklist (proofStep : String) (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
   let fileName ← getFileName
   let startPos := toString <| (← getFileMap).toPosition startPos
   let endPos := toString <| (← getFileMap).toPosition endPos
@@ -198,7 +199,7 @@ def checkBlacklist (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool 
   let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile "blacklist.json")
   let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
 
-  return blacklist.contains ⟨fileName, startPos, endPos⟩
+  return blacklist.contains ⟨fileName, proofStep, startPos, endPos⟩
 ----------------------------------------------------------------------------------------------------
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
@@ -244,10 +245,7 @@ where
             ngen := ← getNGen
           }
           traceCanonicalInfo stx startPos endPos ci
-          if !(← checkBlacklist startPos endPos) then
-            checkAuto startPos endPos ci
-          else
-            mylog "I don't go. Blacklisted"
+          checkAuto startPos endPos ci
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
@@ -271,6 +269,8 @@ where
         | .ok y => some ⟨str, y⟩
       )
       for ⟨autoStr, autoStx⟩ in autos do
+        if (← checkBlacklist autoStr startPos endPos) then
+          continue
         let ti : TraceInfo := {
           source := "checkAuto"
           proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
@@ -300,15 +300,15 @@ where
           withAtLeastMaxRecDepth 32768 <|
             withOptions (fun o =>
               o.setBool `_doTracing false) <|
-            (do mylog "before eval"; evalTactic autoStx; mylog "after eval")
+            (do mylog "before auto"; evalTactic autoStx)
           if (← getUnsolvedGoals).isEmpty then
             mylog s!"auto ({autoStx.getKind.toString}) has closed the goal!"
             mylog (toJson ti).pretty
-          else
-            mylog s!"useless auto ({autoStx.getKind.toString}) : else"
+          -- else
+          --   mylog s!"useless auto ({autoStx.getKind.toString}) : else"
         catch ex =>
-          -- pure ()
-          mylog s!"useless auto ({autoStx.getKind.toString}) : catched {← ex.toMessageData.toString}"
+          pure ()
+          -- mylog s!"useless auto ({autoStx.getKind.toString}) : catched {← ex.toMessageData.toString}"
           -- mylog s!"currHeartbeats = {← IO.getNumHeartbeats}"
         finally
           Core.resetInitHeartbeats
