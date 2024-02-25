@@ -251,15 +251,15 @@ where
     If yes, trace it -/
     checkAuto (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
       let autos_str := #[
-        -- "simp (config := { maxSteps := 400 }) [*]",
-        -- "solve_by_elim",
-        -- "tauto",
-        -- "ring",
-        -- "linarith",
-        -- "nlinarith",
-        -- "abel",
-        -- "omega",
-        -- "continuity",
+        "simp (config := { maxSteps := 400 }) [*]",
+        "solve_by_elim",
+        "tauto",
+        "ring",
+        "linarith",
+        "nlinarith",
+        "abel",
+        "omega",
+        "continuity",
         "aesop (simp_config := {maxSteps := 400})"
       ]
 
@@ -270,7 +270,7 @@ where
       )
       for ⟨autoStr, autoStx⟩ in autos do
         if (← checkBlacklist autoStr startPos endPos) then
-          mylog "I don't go there. Blacklisted."
+          -- mylog "I don't go there. Blacklisted."
           continue
         let ti : TraceInfo := {
           source := "checkAuto"
