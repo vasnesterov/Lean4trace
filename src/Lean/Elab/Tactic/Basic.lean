@@ -270,6 +270,7 @@ where
       )
       for ⟨autoStr, autoStx⟩ in autos do
         if (← checkBlacklist autoStr startPos endPos) then
+          mylog "I don't go there. Blacklisted."
           continue
         let ti : TraceInfo := {
           source := "checkAuto"
@@ -300,7 +301,7 @@ where
           withAtLeastMaxRecDepth 32768 <|
             withOptions (fun o =>
               o.setBool `_doTracing false) <|
-            (do mylog "before auto"; evalTactic autoStx)
+            (do mylog s!"before auto: {autoStr}"; evalTactic autoStx)
           if (← getUnsolvedGoals).isEmpty then
             mylog s!"auto ({autoStx.getKind.toString}) has closed the goal!"
             mylog (toJson ti).pretty
