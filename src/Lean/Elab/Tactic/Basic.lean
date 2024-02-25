@@ -144,14 +144,14 @@ structure EvalTacticFailure where
 Functions for tracing. Will be moved to another file -/
 
 structure TraceInfo where
+  /- Main info -/
   source : String
   proofState : String
   proofStep : String
   stxKind : String
-deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
-
-structure CanonicalTraceInfo extends TraceInfo where
+  /- Meta info -/
   fileName : String
+  declName : Name
   startPos : String
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
@@ -170,12 +170,13 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     proofStep := (← PrettyPrinter.formatTerm stx).pretty
   catch _ => pure ()
 
-  let ti : CanonicalTraceInfo := {
+  let ti : TraceInfo := {
     source := "canonical"
     proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
     stxKind := stx.getKind.toString
     fileName := ← getFileName
+    declName := (← Term.getDeclName?).getD `no_decl
     startPos := toString <| (← getFileMap).toPosition startPos
     endPos := toString <| (← getFileMap).toPosition endPos
   }
@@ -244,30 +245,41 @@ where
           }
           traceCanonicalInfo stx startPos endPos ci
           if !(← checkBlacklist startPos endPos) then
-            checkAuto ci
+            checkAuto startPos endPos ci
           else
             mylog "I don't go. Blacklisted"
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
-    checkAuto (ci : ContextInfo) : TacticM Unit := do
+    checkAuto (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
       let autos_str := #[
         -- "simp (config := { maxSteps := 400 }) [*]",
-        -- "aesop",
-        "aesop (simp_config := {maxSteps := 4000})"
+        -- "solve_by_elim",
+        -- "tauto",
+        -- "ring",
+        -- "linarith",
+        -- "nlinarith",
+        -- "abel",
+        -- "omega",
+        -- "continuity",
+        "aesop (simp_config := {maxSteps := 400})"
       ]
 
-      let autos := autos_str.filterMap (fun str =>
+      let autos : Array (String × Syntax) := autos_str.filterMap (fun str =>
         match Lean.Parser.runParserCategory ci.env `tactic str with
         | .error _ => none
-        | .ok y => y
+        | .ok y => some ⟨str, y⟩
       )
-      for autoStx in autos do
+      for ⟨autoStr, autoStx⟩ in autos do
         let ti : TraceInfo := {
           source := "checkAuto"
           proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
-          proofStep := (← PrettyPrinter.formatTerm autoStx).pretty
+          proofStep := autoStr
           stxKind := autoStx.getKind.toString
+          fileName := ← getFileName
+          declName := (← Term.getDeclName?).getD `no_decl
+          startPos := toString <| (← getFileMap).toPosition startPos
+          endPos := toString <| (← getFileMap).toPosition endPos
         }
 
         let coreState := ← get (m := CoreM)
