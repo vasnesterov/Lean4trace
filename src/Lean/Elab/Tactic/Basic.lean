@@ -190,14 +190,23 @@ structure BlacklistItem where
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr, BEq
 
+def readBlacklist : TacticM (Array BlacklistItem) := do
+  for _ in [0:1000] do
+    try
+      let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile "blacklist.json")
+      let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
+      return blacklist
+    catch _ =>
+      pure ()
+  throwError "cannot read blacklist"
+
 /-- Return `true` if given position is in the blacklist and we don't want to check auto here -/
 def checkBlacklist (proofStep : String) (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
   let fileName ← getFileName
   let startPos := toString <| (← getFileMap).toPosition startPos
   let endPos := toString <| (← getFileMap).toPosition endPos
 
-  let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile "blacklist.json")
-  let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
+  let blacklist ← readBlacklist
 
   return blacklist.contains ⟨fileName, proofStep, startPos, endPos⟩
 ----------------------------------------------------------------------------------------------------
