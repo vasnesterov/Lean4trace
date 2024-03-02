@@ -37,6 +37,7 @@ def withRWRulesSeq (token : Syntax) (rwRulesSeqStx : Syntax) (x : (symm : Bool) 
   let numRules := (rules.size + 1) / 2
   for i in [:numRules] do
     let rule := rules[i * 2]!
+    -- IO.println s!"rule : {(← PrettyPrinter.formatTerm rule).pretty}"
     let sep  := rules.getD (i * 2 + 1) Syntax.missing
     -- show rule state up to (incl.) next `,`
     withTacticInfoContext (mkNullNode #[rule, sep]) do
@@ -65,9 +66,32 @@ def withRWRulesSeq (token : Syntax) (rwRulesSeqStx : Syntax) (x : (symm : Bool) 
 
 declare_config_elab elabRewriteConfig Rewrite.Config
 
+def traceExpandRw (stx : Syntax) : TacticM Unit := do
+  let rules := stx[2][1].getArgs
+  IO.println s!"rules: {(← PrettyPrinter.formatTerm stx[2]).pretty}"
+  let numRules := (rules.size + 1) / 2
+  -- let s ← saveState
+  for i in [:numRules] do
+    let rule := rules[i * 2]!
+    let oneRuleStx : Syntax := stx.setArgs <| stx.getArgs.set! 2 <|
+      stx[2].setArgs <| stx[2].getArgs.set! 1 <|
+      stx[2][1].setArgs #[rule]
+
+    -- TODO: rewrite -> rw
+    -- IO.println s!"tac: {stx[0]}"
+    -- oneRuleStx := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 `rw
+
+    IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
+    -- evalTactic oneRuleStx
+  -- s.restore
+
+
 @[builtin_tactic Lean.Parser.Tactic.rewriteSeq] def evalRewriteSeq : Tactic := fun stx => do
   let cfg ← elabRewriteConfig stx[1]
   let loc   := expandOptLocation stx[3]
+  let rules := stx[2][1].getArgs
+  if rules.size > 1 then
+    traceExpandRw stx
   withRWRulesSeq stx[0] stx[2] fun symm term => do
     withLocation loc
       (rewriteLocalDecl term symm · cfg)

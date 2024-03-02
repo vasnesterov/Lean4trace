@@ -158,9 +158,9 @@ deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 def mylog (s : String) : TacticM Unit := do
   IO.println s
-  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  h.putStr <| s.push '\n'
-  h.flush
+  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  -- h.putStr <| s.push '\n'
+  -- h.flush
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
@@ -197,7 +197,7 @@ def readBlacklist : TacticM (Array BlacklistItem) := do
       let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
       return blacklist
     catch _ =>
-      pure ()
+      IO.sleep 1000
   throwError "cannot read blacklist"
 
 /-- Return `true` if given position is in the blacklist and we don't want to check auto here -/
@@ -253,8 +253,14 @@ where
             openDecls := ← getOpenDecls,
             ngen := ← getNGen
           }
-          traceCanonicalInfo stx startPos endPos ci
-          checkAuto startPos endPos ci
+          -- traceCanonicalInfo stx startPos endPos ci
+          traceExpanded stx startPos endPos ci
+          -- checkAuto startPos endPos ci
+
+    /- Expand rw -/
+    traceExpanded (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
+      if stx.getKind == `Lean.Parser.Tactic.rwSeq then
+        mylog (← PrettyPrinter.formatTerm stx).pretty
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
