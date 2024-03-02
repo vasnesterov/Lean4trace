@@ -242,6 +242,17 @@ def resetInitHeartbeats : CoreM Unit := do
 def getInitHeartbeats : CoreM Nat :=
   return (← get).initHeartbeats
 
+/- Resets initHeartbeats so the amount of spent heartbeats keeps the same -/
+def withoutCountHeartbeatsImp (x : CoreM α) : CoreM α := do
+  let spentHeartbeats := (← IO.getNumHeartbeats) - (← getInitHeartbeats)
+  let result ← x
+  let currHeartbeats ← IO.getNumHeartbeats
+  setInitHeartbeats (currHeartbeats - spentHeartbeats)
+  return result
+
+def withoutCountHeartbeats [Monad m] [MonadControlT CoreM m] (x : m α) : m α :=
+  controlAt CoreM fun runInBase => withoutCountHeartbeatsImp (runInBase x)
+
 private def withCurrHeartbeatsImp (x : CoreM α) : CoreM α := do
   -- dbg_trace "withCurrHeartbeatsImp in: {(← get).initHeartbeats} {(← read).initHeartbeats}"
   let initHeartbeatsWas := (← get).initHeartbeats
@@ -297,7 +308,7 @@ instance : MonadLog CoreM where
 
 end Core
 
-export Core (CoreM mkFreshUserName checkSystem resetInitHeartbeats withCurrHeartbeats withMaxHeartbeats)
+export Core (CoreM mkFreshUserName checkSystem resetInitHeartbeats withCurrHeartbeats withMaxHeartbeats withoutCountHeartbeats)
 
 @[inline] def withAtLeastMaxRecDepth [MonadFunctorT CoreM m] (max : Nat) : m α → m α :=
   monadMap (m := CoreM) <| withReader (fun ctx => { ctx with maxRecDepth := Nat.max max ctx.maxRecDepth })

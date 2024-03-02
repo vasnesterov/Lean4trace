@@ -91,7 +91,7 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
   let loc   := expandOptLocation stx[3]
   let rules := stx[2][1].getArgs
   if rules.size > 1 then
-    traceExpandRw stx
+    Core.withoutCountHeartbeats <| traceExpandRw stx
   withRWRulesSeq stx[0] stx[2] fun symm term => do
     withLocation loc
       (rewriteLocalDecl term symm · cfg)
