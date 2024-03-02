@@ -70,7 +70,7 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
   let rules := stx[2][1].getArgs
   IO.println s!"rules: {(← PrettyPrinter.formatTerm stx[2]).pretty}"
   let numRules := (rules.size + 1) / 2
-  -- let s ← saveState
+  let s ← saveState
   for i in [:numRules] do
     let rule := rules[i * 2]!
     let oneRuleStx : Syntax := stx.setArgs <| stx.getArgs.set! 2 <|
@@ -81,9 +81,25 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     -- IO.println s!"tac: {stx[0]}"
     -- oneRuleStx := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 `rw
 
-    -- IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
-    evalTactic oneRuleStx
-  -- s.restore
+    let startPos := stx.getPos? (canonicalOnly := true)
+    let endPos := stx.getTailPos? (canonicalOnly := true)
+    match startPos, endPos with
+    | none, _ => pure ()
+    | some _, none => pure ()
+    | some startPos, some endPos =>
+      IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
+      let ci : ContextInfo := {
+        env := ← getEnv,
+        fileMap := ← getFileMap,
+        mctx := ← getMCtx,
+        options := ← getOptions,
+        currNamespace := ← getCurrNamespace,
+        openDecls := ← getOpenDecls,
+        ngen := ← getNGen
+      }
+      traceCanonicalInfo oneRuleStx startPos endPos ci
+    withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
+  s.restore
 
 
 @[builtin_tactic Lean.Parser.Tactic.rewriteSeq] def evalRewriteSeq : Tactic := fun stx => do
@@ -92,11 +108,10 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
   let rules := stx[2][1].getArgs
   if rules.size > 1 then
     Core.withoutCountHeartbeats <| traceExpandRw stx
-  else
-    withRWRulesSeq stx[0] stx[2] fun symm term => do
-      withLocation loc
-        (rewriteLocalDecl term symm · cfg)
-        (rewriteTarget term symm cfg)
-        (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
+  withRWRulesSeq stx[0] stx[2] fun symm term => do
+    withLocation loc
+      (rewriteLocalDecl term symm · cfg)
+      (rewriteTarget term symm cfg)
+      (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
 end Lean.Elab.Tactic

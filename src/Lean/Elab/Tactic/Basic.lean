@@ -164,14 +164,14 @@ def mylog (s : String) : TacticM Unit := do
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
-def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
+def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) (source : String := "canonical") : TacticM Unit := do
   let mut proofStep : String := "<parsing problem>"
   try
     proofStep := (← PrettyPrinter.formatTerm stx).pretty
   catch _ => pure ()
 
   let ti : TraceInfo := {
-    source := "canonical"
+    source := source
     proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
     stxKind := stx.getKind.toString
@@ -243,7 +243,7 @@ where
       | some _, none => pure ()
       | some startPos, some endPos =>
         let stxKind := stx.getKind
-        if ¬ ignoredStxKinds.contains stxKind then
+        if !ignoredStxKinds.contains stxKind then
           let ci : ContextInfo := {
             env := ← getEnv,
             fileMap := ← getFileMap,
@@ -254,13 +254,13 @@ where
             ngen := ← getNGen
           }
           -- traceCanonicalInfo stx startPos endPos ci
-          traceExpanded stx startPos endPos ci
+          -- traceExpanded stx startPos endPos ci
           -- checkAuto startPos endPos ci
 
     /- Expand rw -/
-    traceExpanded (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
-      if stx.getKind == `Lean.Parser.Tactic.rwSeq then
-        mylog (← PrettyPrinter.formatTerm stx).pretty
+    -- traceExpanded (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
+    --   if stx.getKind == `Lean.Parser.Tactic.rwSeq then
+    --     mylog (← PrettyPrinter.formatTerm stx).pretty
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
