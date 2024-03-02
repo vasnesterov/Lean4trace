@@ -77,12 +77,18 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
       stx[2].setArgs <| stx[2].getArgs.set! 1 <|
       stx[2][1].setArgs #[rule]
 
-    -- TODO: rewrite -> rw
-    -- IO.println s!"tac: {stx[0]}"
-    -- oneRuleStx := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 `rw
+    -- rewrite -> rw
+    -- let oneRuleStxRw := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 <| match stx[0] with
+    -- | .missing => .missing
+    -- | .node _ _ _ => .missing
+    -- | .atom info val => if val == "rewrite" then .atom info "rewritw" else .missing
+    -- | .ident _ _ _ _ => .missing
 
-    let startPos := stx.getPos?.getD (String.Pos.mk 123456789)
-    let endPos := stx.getTailPos?.getD (String.Pos.mk 123456789)
+    -- if oneRuleStxRw.isMissing then
+    --   throwError "ummm?"
+
+    let startPos := stx.getPos?.getD (String.Pos.mk 0)
+    let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
     IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
     let ci : ContextInfo := {
       env := ← getEnv,
@@ -93,7 +99,7 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
       openDecls := ← getOpenDecls,
       ngen := ← getNGen
     }
-    traceCanonicalInfo oneRuleStx startPos endPos ci "expand_rw"
+    traceCanonicalInfo oneRuleStx startPos endPos ci "expandRw"
     withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
   s.restore
 
