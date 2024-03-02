@@ -264,9 +264,7 @@ private def withCurrHeartbeatsImp (x : CoreM α) : CoreM α := do
   finally
     setInitHeartbeats initHeartbeatsWas
     -- dbg_trace "withCurrHeartbeatsImp out: {(← get).initHeartbeats} {(← read).initHeartbeats}"
-  match result with
-  | .none => throwError "shouldn't be thrown"
-  | .some a => return a
+  return result.getD (← throwError "shouldn't be thrown")
 
 def withCurrHeartbeats [Monad m] [MonadControlT CoreM m] (x : m α) : m α :=
   controlAt CoreM fun runInBase => withCurrHeartbeatsImp (runInBase x)

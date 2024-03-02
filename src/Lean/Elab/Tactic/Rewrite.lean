@@ -81,23 +81,19 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     -- IO.println s!"tac: {stx[0]}"
     -- oneRuleStx := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 `rw
 
-    let startPos := stx.getPos? (canonicalOnly := true)
-    let endPos := stx.getTailPos? (canonicalOnly := true)
-    match startPos, endPos with
-    | none, _ => pure ()
-    | some _, none => pure ()
-    | some startPos, some endPos =>
-      IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
-      let ci : ContextInfo := {
-        env := ← getEnv,
-        fileMap := ← getFileMap,
-        mctx := ← getMCtx,
-        options := ← getOptions,
-        currNamespace := ← getCurrNamespace,
-        openDecls := ← getOpenDecls,
-        ngen := ← getNGen
-      }
-      traceCanonicalInfo oneRuleStx startPos endPos ci
+    let startPos := stx.getPos?.getD (String.Pos.mk 123456789)
+    let endPos := stx.getTailPos?.getD (String.Pos.mk 123456789)
+    IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
+    let ci : ContextInfo := {
+      env := ← getEnv,
+      fileMap := ← getFileMap,
+      mctx := ← getMCtx,
+      options := ← getOptions,
+      currNamespace := ← getCurrNamespace,
+      openDecls := ← getOpenDecls,
+      ngen := ← getNGen
+    }
+    traceCanonicalInfo oneRuleStx startPos endPos ci "expand_rw"
     withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
   s.restore
 
