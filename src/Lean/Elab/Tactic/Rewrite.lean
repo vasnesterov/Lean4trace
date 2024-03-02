@@ -81,8 +81,8 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     -- IO.println s!"tac: {stx[0]}"
     -- oneRuleStx := oneRuleStx.setArgs <| oneRuleStx.getArgs.set! 0 `rw
 
-    IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
-    -- evalTactic oneRuleStx
+    -- IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
+    evalTactic oneRuleStx
   -- s.restore
 
 
@@ -92,10 +92,11 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
   let rules := stx[2][1].getArgs
   if rules.size > 1 then
     Core.withoutCountHeartbeats <| traceExpandRw stx
-  withRWRulesSeq stx[0] stx[2] fun symm term => do
-    withLocation loc
-      (rewriteLocalDecl term symm · cfg)
-      (rewriteTarget term symm cfg)
-      (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
+  else
+    withRWRulesSeq stx[0] stx[2] fun symm term => do
+      withLocation loc
+        (rewriteLocalDecl term symm · cfg)
+        (rewriteTarget term symm cfg)
+        (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
 
 end Lean.Elab.Tactic
