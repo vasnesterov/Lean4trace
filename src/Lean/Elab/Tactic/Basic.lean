@@ -254,13 +254,7 @@ where
             ngen := ← getNGen
           }
           -- traceCanonicalInfo stx startPos endPos ci
-          -- traceExpanded stx startPos endPos ci
           -- checkAuto startPos endPos ci
-
-    /- Expand rw -/
-    -- traceExpanded (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
-    --   if stx.getKind == `Lean.Parser.Tactic.rwSeq then
-    --     mylog (← PrettyPrinter.formatTerm stx).pretty
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
@@ -559,6 +553,31 @@ def tryTactic (tactic : TacticM α) : TacticM Bool := do
     pure true
   catch _ =>
     pure false
+
+def getPpGoals : TacticM (HashSet String) := do
+  let goals ← getUnsolvedGoals
+  let ansList ← goals.mapM (fun g => do return (← Meta.ppGoal g).pretty)
+  return HashSet.empty.insertMany ansList
+
+def isEqualSets (s1 s2 : HashSet String) : Bool := Id.run do
+  for item in s1 do
+    if !s2.contains item then
+      return false
+  for item in s2 do
+    if !s1.contains item then
+      return false
+  return true
+
+def isEquivalentTactics (tac1 tac2 : TacticM Unit) : TacticM Bool := do
+  let s ← saveState
+  tac1
+  let ppGoals1 ← getPpGoals
+  s.restore
+  tac2
+  let ppGoals2 ← getPpGoals
+  s.restore
+  return isEqualSets ppGoals1 ppGoals2
+
 /--
   Use `parentTag` to tag untagged goals at `newGoals`.
   If there are multiple new untagged goals, they are named using `<parentTag>.<newSuffix>_<idx>` where `idx > 0`.
