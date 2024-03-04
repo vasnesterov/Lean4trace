@@ -414,19 +414,21 @@ def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainCont
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   let simpOnly := !stx[3].isNone
-  if simpOnly then Core.withoutCountHeartbeats <| do
-    let mut stxWithoutOnly := stx
-    stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
-    let equiv ← isEquivalentTactics
-      (evalSimpImp stx)
-      (evalSimpImpWithMaxSteps 400 stxWithoutOnly)
-    if equiv then
-      IO.println "onlyinfo : equiv!"
-      let startPos := stx.getPos?.getD (String.Pos.mk 0)
-      let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-      traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
-    else
-      IO.println "onlyinfo : non-equiv"
+  let nArgs := stx[4][1].getSepArgs.size
+  IO.println s!"simpInfo: {simpOnly} {nArgs}"
+  -- if simpOnly then Core.withoutCountHeartbeats <| do
+  --   let mut stxWithoutOnly := stx
+  --   stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
+  --   let equiv ← isEquivalentTactics
+  --     (evalSimpImp stx)
+  --     (evalSimpImpWithMaxSteps 400 stxWithoutOnly)
+  --   if equiv then
+  --     IO.println "onlyinfo : equiv!"
+  --     let startPos := stx.getPos?.getD (String.Pos.mk 0)
+  --     let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+  --     traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
+  --   else
+  --     IO.println "onlyinfo : non-equiv"
   evalSimpImp stx
 
 @[builtin_tactic Lean.Parser.Tactic.simpAll] def evalSimpAll : Tactic := fun stx => withMainContext do
