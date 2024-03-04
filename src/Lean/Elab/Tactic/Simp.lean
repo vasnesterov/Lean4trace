@@ -404,6 +404,14 @@ def evalSimpImp : Tactic := fun stx => withMainContext do
   if tactic.simp.trace.get (← getOptions) then
     traceSimpCall stx usedSimps
 
+def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainContext do
+  let { ctx, simprocs, dischargeWrapper } ← mkSimpContext stx (eraseLocal := false)
+  let newCtx := {ctx with config := {ctx.config with maxSteps := Nat.min maxSteps ctx.config.maxSteps}}
+  let usedSimps ← dischargeWrapper.with fun discharge? =>
+    simpLocation newCtx simprocs discharge? (expandOptLocation stx[5])
+  if tactic.simp.trace.get (← getOptions) then
+    traceSimpCall stx usedSimps
+
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   let simpOnly := !stx[3].isNone
   if simpOnly then Core.withoutCountHeartbeats <| do
@@ -411,12 +419,11 @@ def evalSimpImp : Tactic := fun stx => withMainContext do
     stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
     let equiv ← isEquivalentTactics
       (evalSimpImp stx)
-      (evalSimpImp stxWithoutOnly)
+      (evalSimpImpWithMaxSteps 400 stxWithoutOnly)
     if equiv then
       IO.println "onlyinfo : equiv!"
       let startPos := stx.getPos?.getD (String.Pos.mk 0)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-      -- IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
       traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
     else
       IO.println "onlyinfo : non-equiv"
