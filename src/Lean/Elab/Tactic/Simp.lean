@@ -406,7 +406,7 @@ def evalSimpImp : Tactic := fun stx => withMainContext do
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   let simpOnly := !stx[3].isNone
-  if simpOnly then
+  if simpOnly then Core.withoutCountHeartbeats <| do
     let mut stxWithoutOnly := stx
     stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
     let equiv ← isEquivalentTactics
@@ -414,6 +414,10 @@ def evalSimpImp : Tactic := fun stx => withMainContext do
       (evalSimpImp stxWithoutOnly)
     if equiv then
       IO.println "onlyinfo : equiv!"
+      let startPos := stx.getPos?.getD (String.Pos.mk 0)
+      let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+      -- IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
+      traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
     else
       IO.println "onlyinfo : non-equiv"
   evalSimpImp stx
