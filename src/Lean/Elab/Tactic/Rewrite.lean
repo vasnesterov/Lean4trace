@@ -70,7 +70,7 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
   let rules := stx[2][1].getArgs
   IO.println s!"rules: {(← PrettyPrinter.formatTerm stx[2]).pretty}"
   let numRules := (rules.size + 1) / 2
-  -- let s ← saveState
+  let s ← saveState
   for i in [:numRules] do
     let rule := rules[i * 2]!
     let oneRuleStx : Syntax := stx.setArgs <| stx.getArgs.set! 2 <|
@@ -90,35 +90,27 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     let startPos := stx.getPos?.getD (String.Pos.mk 0)
     let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
     -- IO.println s!"heh? {(← PrettyPrinter.formatTerm oneRuleStx).pretty}"
-    let ci : ContextInfo := {
-      env := ← getEnv,
-      fileMap := ← getFileMap,
-      mctx := ← getMCtx,
-      options := ← getOptions,
-      currNamespace := ← getCurrNamespace,
-      openDecls := ← getOpenDecls,
-      ngen := ← getNGen
-    }
-    -- traceCanonicalInfo oneRuleStx startPos endPos ci "expandRw"
+    traceCanonicalInfo oneRuleStx startPos endPos "expandRw"
     withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
-  -- s.restore
+  s.restore
 
 
 @[builtin_tactic Lean.Parser.Tactic.rewriteSeq] def evalRewriteSeq : Tactic := fun stx => do
   let cfg ← elabRewriteConfig stx[1]
   let loc   := expandOptLocation stx[3]
-  let rules := stx[2][1].getArgs
-  if rules.size > 1 then Core.withoutCountHeartbeats <| do
-    let eq := ← isEquivalentTactics
-      (withRWRulesSeq stx[0] stx[2] fun symm term => do
-        withLocation loc
-          (rewriteLocalDecl term symm · cfg)
-          (rewriteTarget term symm cfg)
-          (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
-      )
-      (traceExpandRw stx)
-    if !eq then
-      IO.println "yohooo!"
+  -- let rules := stx[2][1].getArgs
+  -- if rules.size > 1 then Core.withoutCountHeartbeats <| do
+  --   traceExpandRw stx
+    -- let eq := ← isEquivalentTactics
+    --   (withRWRulesSeq stx[0] stx[2] fun symm term => do
+    --     withLocation loc
+    --       (rewriteLocalDecl term symm · cfg)
+    --       (rewriteTarget term symm cfg)
+    --       (throwTacticEx `rewrite · "did not find instance of the pattern in the current goal")
+    --   )
+    --   (traceExpandRw stx)
+    -- if !eq then
+    --   IO.println "yohooo!"
 
   withRWRulesSeq stx[0] stx[2] fun symm term => do
     withLocation loc

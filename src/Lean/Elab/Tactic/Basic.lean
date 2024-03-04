@@ -164,7 +164,7 @@ def mylog (s : String) : TacticM Unit := do
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
-def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) (source : String := "canonical") : TacticM Unit := do
+def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (source : String := "canonical") : TacticM Unit := do
   let mut proofStep : String := "<parsing problem>"
   try
     proofStep := (← PrettyPrinter.formatTerm stx).pretty
@@ -172,7 +172,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
 
   let ti : TraceInfo := {
     source := source
-    proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+    proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
     stxKind := stx.getKind.toString
     fileName := ← getFileName
@@ -213,8 +213,8 @@ def checkBlacklist (proofStep : String) (startPos : String.Pos) (endPos : String
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
   -- IO.println s!"evalTactic: {← getBoolOption `_doTracing true}"
-  if (← getBoolOption `_doTracing true) then
-    trace stx
+  -- if (← getBoolOption `_doTracing true) then
+  --   trace stx
 
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
@@ -244,21 +244,12 @@ where
       | some startPos, some endPos =>
         let stxKind := stx.getKind
         if !ignoredStxKinds.contains stxKind then
-          let ci : ContextInfo := {
-            env := ← getEnv,
-            fileMap := ← getFileMap,
-            mctx := ← getMCtx,
-            options := ← getOptions,
-            currNamespace := ← getCurrNamespace,
-            openDecls := ← getOpenDecls,
-            ngen := ← getNGen
-          }
-          -- traceCanonicalInfo stx startPos endPos ci
-          -- checkAuto startPos endPos ci
+          traceCanonicalInfo stx startPos endPos
+          checkAuto startPos endPos
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
-    checkAuto (startPos : String.Pos) (endPos : String.Pos) (ci : ContextInfo) : TacticM Unit := do
+    checkAuto (startPos : String.Pos) (endPos : String.Pos) : TacticM Unit := do
       let autos_str := #[
         "simp (config := { maxSteps := 400 }) [*]",
         "solve_by_elim",
@@ -272,8 +263,9 @@ where
         "aesop (simp_config := {maxSteps := 400})"
       ]
 
+      let env ← getEnv
       let autos : Array (String × Syntax) := autos_str.filterMap (fun str =>
-        match Lean.Parser.runParserCategory ci.env `tactic str with
+        match Lean.Parser.runParserCategory env `tactic str with
         | .error _ => none
         | .ok y => some ⟨str, y⟩
       )
@@ -283,7 +275,7 @@ where
           continue
         let ti : TraceInfo := {
           source := "checkAuto"
-          proofState := (← ci.ppGoals (← getUnsolvedGoals)).pretty
+          proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
           proofStep := autoStr
           stxKind := autoStx.getKind.toString
           fileName := ← getFileName
@@ -570,12 +562,18 @@ def isEqualSets (s1 s2 : HashSet String) : Bool := Id.run do
 
 def isEquivalentTactics (tac1 tac2 : TacticM Unit) : TacticM Bool := do
   let s ← saveState
-  tac1
-  let ppGoals1 ← getPpGoals
+  let ppGoals1 ← try
+    tac1
+    getPpGoals
+  catch ex => s.restore; return false
   s.restore
-  tac2
-  let ppGoals2 ← getPpGoals
+
+  let ppGoals2 ← try
+    tac2
+    getPpGoals
+  catch ex => s.restore; return false
   s.restore
+
   return isEqualSets ppGoals1 ppGoals2
 
 /--

@@ -397,12 +397,26 @@ where
   "simp" (config)? (discharger)? (" only")? (" [" ((simpStar <|> simpErase <|> simpLemma),*,?) "]")?
   (location)?
 -/
-@[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => withMainContext do
+def evalSimpImp : Tactic := fun stx => withMainContext do
   let { ctx, simprocs, dischargeWrapper } ← mkSimpContext stx (eraseLocal := false)
   let usedSimps ← dischargeWrapper.with fun discharge? =>
     simpLocation ctx simprocs discharge? (expandOptLocation stx[5])
   if tactic.simp.trace.get (← getOptions) then
     traceSimpCall stx usedSimps
+
+@[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
+  let simpOnly := !stx[3].isNone
+  if simpOnly then
+    let mut stxWithoutOnly := stx
+    stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
+    let equiv ← isEquivalentTactics
+      (evalSimpImp stx)
+      (evalSimpImp stxWithoutOnly)
+    if equiv then
+      IO.println "onlyinfo : equiv!"
+    else
+      IO.println "onlyinfo : non-equiv"
+  evalSimpImp stx
 
 @[builtin_tactic Lean.Parser.Tactic.simpAll] def evalSimpAll : Tactic := fun stx => withMainContext do
   let { ctx, simprocs, .. } ← mkSimpContext stx (eraseLocal := true) (kind := .simpAll) (ignoreStarArg := true)

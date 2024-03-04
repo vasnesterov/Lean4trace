@@ -100,4 +100,10 @@ def ppGoal (mvarId : MVarId) : MetaM Format := do
       | Name.anonymous => return fmt
       | name           => return "case " ++ format name.eraseMacroScopes ++ Format.line ++ fmt
 
+def ppGoals (goals : List MVarId) : MetaM Format :=
+  if goals.isEmpty then
+    return "no goals"
+  else
+    return Std.Format.prefixJoin "\n" (← goals.mapM (Meta.ppGoal ·))
+
 end Lean.Meta
