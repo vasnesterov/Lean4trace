@@ -234,7 +234,9 @@ partial def evalTactic (stx : Syntax) : TacticM Unit := do
 where
     trace (stx : Syntax) : TacticM Unit := do
       let ignoredStxKinds : Array Name :=
-        #[`Lean.Parser.Tactic.tacticSeq1Indented, `Lean.Parser.Tactic.tacticSeq]
+        #[`Lean.Parser.Tactic.tacticSeq1Indented, `Lean.Parser.Tactic.tacticSeq,
+          `Lean.Parser.Tactic.tacticSeqBracketed, `Lean.Parser.Tactic.Conv.convSeq,
+          `Lean.Parser.Tactic.Conv.convSeq1Indented]
 
       let startPos := stx.getPos? (canonicalOnly := true)
       let endPos := stx.getTailPos? (canonicalOnly := true)

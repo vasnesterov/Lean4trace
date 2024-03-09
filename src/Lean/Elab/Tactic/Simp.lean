@@ -415,7 +415,27 @@ def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainCont
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   let simpOnly := !stx[3].isNone
   let nArgs := stx[4][1].getSepArgs.size
-  IO.println s!"simpInfo: {simpOnly} {nArgs}"
+  -- logInfo m!"simpInfo: {simpOnly} {nArgs}"
+  -- logInfo m!"{stx}"
+  let mut singleStxs := #[]
+  for arg in stx[4][1].getSepArgs do
+    let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
+    let newStx := stx.setArg 4 (mkNullNode argsStx)
+    -- logInfo m!"  {newStx}"
+    singleStxs := singleStxs.push newStx
+    -- logInfo m!"  {arg}"
+    let equiv ← isEquivalentTactics
+      (evalSimpImp stx)
+      (for singleStx in singleStxs do
+        evalSimpImpWithMaxSteps 400 singleStx
+      )
+    if equiv then
+      IO.println "splitInfo : equiv!"
+      -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
+      -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+      -- traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
+    else
+      IO.println "splitInfo : non-equiv"
   -- if simpOnly then Core.withoutCountHeartbeats <| do
   --   let mut stxWithoutOnly := stx
   --   stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
