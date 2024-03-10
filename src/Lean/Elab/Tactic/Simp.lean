@@ -432,11 +432,13 @@ partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) :=
     let newPath := (← get).path.push step
     modify (fun s => {s with path := newPath})
     try
-      let equiv ← isEquivalentTactics
+      let equiv ← withCatchingRuntimeEx try withoutCatchingRuntimeEx do
+        isEquivalentTactics
           (evalSimpImp (← read).canonicalStx)
           (for singleStx in newPath do
             evalSimpImpWithMaxSteps 400 singleStx
           )
+      catch _ => throwError "cannot apply simp seq"
       if equiv then
         return .some newPath
     catch _ =>
@@ -444,9 +446,7 @@ partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) :=
       continue
 
     match ← simpSearchDFS (depth + 1) with
-    | .none =>
-      modify (fun s => {s with path := s.path.pop})
-      continue
+    | .none => modify (fun s => {s with path := s.path.pop})
     | .some path => return path
 
   return .none
