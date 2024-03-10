@@ -412,6 +412,54 @@ def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainCont
   if tactic.simp.trace.get (← getOptions) then
     traceSimpCall stx usedSimps
 
+structure SimpSearchContext where
+  canonicalStx : Syntax
+  steps : Array Syntax
+  maxDepth : Nat
+
+structure SimpSearchState where
+  path : Array Syntax
+
+abbrev SimpSearchM := ReaderT SimpSearchContext $ StateRefT SimpSearchState TacticM
+
+partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) := do
+  if depth != (← get).path.size then
+    IO.println "depth path"
+  if depth >= (← read).maxDepth then
+    return .none
+
+  for step in (← read).steps do
+    let newPath := (← get).path.push step
+    modify (fun s => {s with path := newPath})
+    try
+      let equiv ← isEquivalentTactics
+          (evalSimpImp (← read).canonicalStx)
+          (for singleStx in newPath do
+            evalSimpImpWithMaxSteps 400 singleStx
+          )
+      if equiv then
+        return .some newPath
+    catch _ =>
+      modify (fun s => {s with path := s.path.pop})
+      continue
+
+    match ← simpSearchDFS (depth + 1) with
+    | .none =>
+      modify (fun s => {s with path := s.path.pop})
+      continue
+    | .some path => return path
+
+  return .none
+
+def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array Syntax)) := do
+  let ctx : SimpSearchContext := {
+    canonicalStx := stx
+    steps := stxs
+    maxDepth := 5
+  }
+  let state : SimpSearchState := {path := #[]}
+  return Prod.fst (← ((simpSearchDFS 0).run ctx).run state)
+
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   -- let simpOnly := !stx[3].isNone
   -- let nArgs := stx[4][1].getSepArgs.size
@@ -424,19 +472,37 @@ def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainCont
       let newStx := stx.setArg 4 (mkNullNode argsStx)
       -- logInfo m!"  {newStx}"
       singleStxs := singleStxs.push newStx
-      -- logInfo m!"  {arg}"
-      let equiv ← isEquivalentTactics
-        (evalSimpImp stx)
-        (for singleStx in singleStxs do
-          evalSimpImpWithMaxSteps 400 singleStx
-        )
-      if equiv then
-        IO.println "splitInfo : equiv!"
-        -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
-        -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-        -- traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
-      else
-        IO.println "splitInfo : non-equiv"
+    if !singleStxs.isEmpty then
+      let res ← searchSimpSeq stx singleStxs
+      match res with
+      | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
+      | .some path => do
+        logInfo "splitInfo : equiv!"
+        logInfo m!"  {stx}"
+        for step in path do
+          logInfo m!"  {step}"
+
+  -- Core.withoutCountHeartbeats do
+  --   let mut singleStxs := #[]
+  --   for arg in stx[4][1].getSepArgs do
+  --     let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
+  --     let newStx := stx.setArg 4 (mkNullNode argsStx)
+  --     -- logInfo m!"  {newStx}"
+  --     singleStxs := singleStxs.push newStx
+  --     -- logInfo m!"  {arg}"
+  --     let equiv ← isEquivalentTactics
+  --       (evalSimpImp stx)
+  --       (for singleStx in singleStxs do
+  --         evalSimpImpWithMaxSteps 400 singleStx
+  --       )
+  --     if equiv then
+  --       IO.println "splitInfo : equiv!"
+  --       -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
+  --       -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+  --       -- traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
+  --     else
+  --       IO.println "splitInfo : non-equiv"
+
   -- if simpOnly then Core.withoutCountHeartbeats <| do
   --   let mut stxWithoutOnly := stx
   --   stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
