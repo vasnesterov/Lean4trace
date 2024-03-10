@@ -425,7 +425,7 @@ abbrev SimpSearchM := ReaderT SimpSearchContext $ StateRefT SimpSearchState Tact
 partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) := do
   if depth != (← get).path.size then
     IO.println "depth path"
-  if depth >= (← read).maxDepth then
+  if depth > (← read).maxDepth then
     return .none
 
   for step in (← read).steps do
@@ -437,6 +437,7 @@ partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) :=
           (evalSimpImp (← read).canonicalStx)
           (for singleStx in newPath do
             evalSimpImpWithMaxSteps 400 singleStx
+            Core.resetInitHeartbeats
           )
       catch _ => throwError "cannot apply simp seq"
       if equiv then
@@ -455,7 +456,7 @@ def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array 
   let ctx : SimpSearchContext := {
     canonicalStx := stx
     steps := stxs
-    maxDepth := 5
+    maxDepth := 4
   }
   let state : SimpSearchState := {path := #[]}
   return Prod.fst (← ((simpSearchDFS 0).run ctx).run state)
