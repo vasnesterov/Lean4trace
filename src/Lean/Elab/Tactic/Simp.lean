@@ -436,7 +436,8 @@ partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) :=
         isEquivalentTactics
           (evalSimpImp (← read).canonicalStx)
           (for singleStx in newPath do
-            evalSimpImpWithMaxSteps 400 singleStx
+            Core.withMaxHeartbeats 50000 <|
+            evalSimpImpWithMaxSteps 100 singleStx
             Core.resetInitHeartbeats
           )
       catch _ => throwError "cannot apply simp seq"
@@ -452,6 +453,46 @@ partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) :=
 
   return .none
 
+
+structure SimpBfsContext where
+  canonicalStx : Syntax
+  steps : Array Syntax
+  maxDepth : Nat
+
+structure SimpBfsState where
+  path : Array Syntax
+
+abbrev SimpBfsM := ReaderT SimpSearchContext $ StateRefT SimpSearchState TacticM
+
+partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax) (maxDepth : Nat) : TacticM (Option (Array Syntax)) := do
+  let mut q : Std.Queue (Array Syntax) := Std.Queue.mk [] []
+  q := q.enqueue #[]
+
+  while !q.isEmpty do
+    let ⟨curPath, qq⟩ := q.dequeue?.get!
+    q := qq
+    if curPath.size > maxDepth then
+      continue
+    try
+      let equiv ← withCatchingRuntimeEx try withoutCatchingRuntimeEx do
+        isEquivalentTactics!
+          (evalSimpImp canonicalStx)
+          (for singleStx in curPath do
+            Core.withMaxHeartbeats 50000 <|
+            evalSimpImpWithMaxSteps 100 singleStx
+            Core.resetInitHeartbeats
+          )
+      catch _ => throwError "cannot apply simp seq"
+      if equiv then
+        return .some curPath
+    catch _ =>
+      continue
+
+    for step in possibleSteps do
+      q := q.enqueue <| curPath.push step
+
+  return .none
+
 def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array Syntax)) := do
   let ctx : SimpSearchContext := {
     canonicalStx := stx
@@ -462,26 +503,29 @@ def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array 
   return Prod.fst (← ((simpSearchDFS 0).run ctx).run state)
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
-  -- let simpOnly := !stx[3].isNone
-  -- let nArgs := stx[4][1].getSepArgs.size
-  -- logInfo m!"simpInfo: {simpOnly} {nArgs}"
-  -- logInfo m!"{stx}"
   Core.withoutCountHeartbeats do
     let mut singleStxs := #[]
     for arg in stx[4][1].getSepArgs do
       let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
       let newStx := stx.setArg 4 (mkNullNode argsStx)
-      -- logInfo m!"  {newStx}"
       singleStxs := singleStxs.push newStx
-    if !singleStxs.isEmpty then
-      let res ← searchSimpSeq stx singleStxs
+    if singleStxs.size > 1 then
+      -- let res ← searchSimpSeq stx singleStxs
+      let res ← simpSearchBFS stx singleStxs 2
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
         logInfo "splitInfo : equiv!"
+        -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
+        -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+        -- let s ← saveState
+
         logInfo m!"  {stx}"
         for step in path do
           logInfo m!"  {step}"
+        --   traceCanonicalInfo step startPos endPos "expandSimp.split"
+        --   evalSimpImpWithMaxSteps 100 step
+        -- s.restore
 
   -- Core.withoutCountHeartbeats do
   --   let mut singleStxs := #[]

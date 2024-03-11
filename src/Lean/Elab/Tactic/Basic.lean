@@ -562,6 +562,23 @@ def isEqualSets (s1 s2 : HashSet String) : Bool := Id.run do
       return false
   return true
 
+def isEquivalentTactics! (tac1 tac2 : TacticM Unit) : TacticM Bool := do
+  let s ← saveState
+  let ppGoals1 ← try
+    tac1
+    getPpGoals
+  catch ex => s.restore; throw ex
+  s.restore
+
+  let ppGoals2 ← try
+    tac2
+    getPpGoals
+  catch ex => s.restore; throw ex
+  s.restore
+
+  return isEqualSets ppGoals1 ppGoals2
+
+/- safe version: does not throw error from tactics, just returns false -/
 def isEquivalentTactics (tac1 tac2 : TacticM Unit) : TacticM Bool := do
   let s ← saveState
   let ppGoals1 ← try
