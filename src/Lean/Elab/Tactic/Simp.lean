@@ -412,57 +412,55 @@ def evalSimpImpWithMaxSteps (maxSteps : Nat) : Tactic := fun stx => withMainCont
   if tactic.simp.trace.get (← getOptions) then
     traceSimpCall stx usedSimps
 
-structure SimpSearchContext where
-  canonicalStx : Syntax
-  steps : Array Syntax
-  maxDepth : Nat
+-- structure SimpSearchContext where
+--   canonicalStx : Syntax
+--   steps : Array Syntax
+--   maxDepth : Nat
 
-structure SimpSearchState where
-  path : Array Syntax
+-- structure SimpSearchState where
+--   path : Array Syntax
 
-abbrev SimpSearchM := ReaderT SimpSearchContext $ StateRefT SimpSearchState TacticM
+-- abbrev SimpSearchM := ReaderT SimpSearchContext $ StateRefT SimpSearchState TacticM
 
-partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) := do
-  if depth != (← get).path.size then
-    IO.println "depth path"
-  if depth > (← read).maxDepth then
-    return .none
+-- partial def simpSearchDFS (depth : Nat) : SimpSearchM (Option (Array Syntax)) := do
+--   if depth != (← get).path.size then
+--     IO.println "depth path"
+--   if depth > (← read).maxDepth then
+--     return .none
 
-  for step in (← read).steps do
-    let newPath := (← get).path.push step
-    modify (fun s => {s with path := newPath})
-    try
-      let equiv ← withCatchingRuntimeEx try withoutCatchingRuntimeEx do
-        isEquivalentTactics
-          (evalSimpImp (← read).canonicalStx)
-          (for singleStx in newPath do
-            Core.withMaxHeartbeats 50000 <|
-            evalSimpImpWithMaxSteps 100 singleStx
-            Core.resetInitHeartbeats
-          )
-      catch _ => throwError "cannot apply simp seq"
-      if equiv then
-        return .some newPath
-    catch _ =>
-      modify (fun s => {s with path := s.path.pop})
-      continue
+--   for step in (← read).steps do
+--     let newPath := (← get).path.push step
+--     modify (fun s => {s with path := newPath})
+--     try
+--       let equiv ← withCatchingRuntimeEx try withoutCatchingRuntimeEx do
+--         isEquivalentTactics!
+--           (evalSimpImp (← read).canonicalStx)
+--           (for singleStx in newPath do
+--             Core.withMaxHeartbeats 50000 <|
+--             evalSimpImpWithMaxSteps 100 singleStx
+--             Core.resetInitHeartbeats
+--           )
+--       catch _ => throwError "cannot apply simp seq"
+--       if equiv then
+--         return .some newPath
+--     catch _ =>
+--       modify (fun s => {s with path := s.path.pop})
+--       continue
 
-    match ← simpSearchDFS (depth + 1) with
-    | .none => modify (fun s => {s with path := s.path.pop})
-    | .some path => return path
+--     match ← simpSearchDFS (depth + 1) with
+--     | .none => modify (fun s => {s with path := s.path.pop})
+--     | .some path => return path
 
-  return .none
+--   return .none
 
-
-structure SimpBfsContext where
-  canonicalStx : Syntax
-  steps : Array Syntax
-  maxDepth : Nat
-
-structure SimpBfsState where
-  path : Array Syntax
-
-abbrev SimpBfsM := ReaderT SimpSearchContext $ StateRefT SimpSearchState TacticM
+-- def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array Syntax)) := do
+--   let ctx : SimpSearchContext := {
+--     canonicalStx := stx
+--     steps := stxs
+--     maxDepth := 4
+--   }
+--   let state : SimpSearchState := {path := #[]}
+--   return Prod.fst (← ((simpSearchDFS 0).run ctx).run state)
 
 partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax) (maxDepth : Nat) : TacticM (Option (Array Syntax)) := do
   let mut q : Std.Queue (Array Syntax) := Std.Queue.mk [] []
@@ -493,15 +491,6 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
 
   return .none
 
-def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array Syntax)) := do
-  let ctx : SimpSearchContext := {
-    canonicalStx := stx
-    steps := stxs
-    maxDepth := 4
-  }
-  let state : SimpSearchState := {path := #[]}
-  return Prod.fst (← ((simpSearchDFS 0).run ctx).run state)
-
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   Core.withoutCountHeartbeats do
     let mut singleStxs := #[]
@@ -511,13 +500,18 @@ def searchSimpSeq (stx : Syntax) (stxs : Array Syntax) : TacticM (Option (Array 
       singleStxs := singleStxs.push newStx
     if singleStxs.size > 1 then
       -- let res ← searchSimpSeq stx singleStxs
-      let res ← simpSearchBFS stx singleStxs 2
+      mylog "before simp split test"
+      let startPos := stx.getPos?.getD (String.Pos.mk 0)
+      let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+      traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
+      let res := if ← checkBlacklist "simp_split_blacklist.json" (← PrettyPrinter.formatTerm stx).pretty startPos endPos then
+        ← simpSearchBFS stx singleStxs (maxDepth := 4)
+      else
+        .none
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
         logInfo "splitInfo : equiv!"
-        -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
-        -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
         -- let s ← saveState
 
         logInfo m!"  {stx}"

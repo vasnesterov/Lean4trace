@@ -158,9 +158,9 @@ deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 def mylog (s : String) : TacticM Unit := do
   IO.println s
-  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  -- h.putStr <| s.push '\n'
-  -- h.flush
+  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  h.putStr <| s.push '\n'
+  h.flush
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
@@ -190,10 +190,10 @@ structure BlacklistItem where
   endPos : String
 deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr, BEq
 
-def readBlacklist : TacticM (Array BlacklistItem) := do
+def readBlacklist (fileName : String) : TacticM (Array BlacklistItem) := do
   for _ in [0:1000] do
     try
-      let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile "blacklist.json")
+      let blacklistJson ← ofExcept <| Json.parse (← IO.FS.readFile fileName)
       let blacklist : Array BlacklistItem ← ofExcept <| fromJson? blacklistJson
       return blacklist
     catch _ =>
@@ -201,12 +201,12 @@ def readBlacklist : TacticM (Array BlacklistItem) := do
   throwError "cannot read blacklist"
 
 /-- Return `true` if given position is in the blacklist and we don't want to check auto here -/
-def checkBlacklist (proofStep : String) (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
+def checkBlacklist (blName : String) (proofStep : String) (startPos : String.Pos) (endPos : String.Pos) : TacticM Bool := do
   let fileName ← getFileName
   let startPos := toString <| (← getFileMap).toPosition startPos
   let endPos := toString <| (← getFileMap).toPosition endPos
 
-  let blacklist ← readBlacklist
+  let blacklist ← readBlacklist blName
 
   return blacklist.contains ⟨fileName, proofStep, startPos, endPos⟩
 ----------------------------------------------------------------------------------------------------
@@ -272,7 +272,7 @@ where
         | .ok y => some ⟨str, y⟩
       )
       for ⟨autoStr, autoStx⟩ in autos do
-        if (← checkBlacklist autoStr startPos endPos) then
+        if (← checkBlacklist "blacklist.json" autoStr startPos endPos) then
           -- mylog "I don't go there. Blacklisted."
           continue
         let ti : TraceInfo := {
