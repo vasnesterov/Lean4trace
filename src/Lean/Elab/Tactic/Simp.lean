@@ -505,9 +505,9 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
       traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
       let res := if ← checkBlacklist "simp_split_blacklist.json" (← PrettyPrinter.formatTerm stx).pretty startPos endPos then
-        ← simpSearchBFS stx singleStxs (maxDepth := 4)
-      else
         .none
+      else
+        ← simpSearchBFS stx singleStxs (maxDepth := 4)
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
