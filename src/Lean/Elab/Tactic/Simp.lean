@@ -502,9 +502,11 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
       -- let res ← searchSimpSeq stx singleStxs
       let startPos := stx.getPos?.getD (String.Pos.mk 0)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+      let check ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos
+      mylog s!"check {check}"
       traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
       mylog "before auto: simp_split"
-      let res := if ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos then
+      let res := if check then
         .none
       else
         ← simpSearchBFS stx singleStxs (maxDepth := 4)
