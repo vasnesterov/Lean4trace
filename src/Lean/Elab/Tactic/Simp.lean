@@ -499,7 +499,6 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
       let newStx := stx.setArg 4 (mkNullNode argsStx)
       singleStxs := singleStxs.push newStx
     if singleStxs.size > 1 then
-      -- let res ← searchSimpSeq stx singleStxs
       let startPos := stx.getPos?.getD (String.Pos.mk 0)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
       let check ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos
@@ -510,42 +509,21 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
         mylog "skipped"
         pure .none
       else
-        let res' := ← simpSearchBFS stx singleStxs (maxDepth := 4)
+        let res' ← simpSearchBFS stx singleStxs (maxDepth := 7)
         mylog "done"
         pure res'
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
         logInfo "splitInfo : equiv!"
-        -- let s ← saveState
+        let s ← saveState
 
-        logInfo m!"  {stx}"
+        -- logInfo m!"  {stx}"
         for step in path do
-          logInfo m!"  {step}"
-        --   traceCanonicalInfo step startPos endPos "expandSimp.split"
-        --   evalSimpImpWithMaxSteps 100 step
-        -- s.restore
-
-  -- Core.withoutCountHeartbeats do
-  --   let mut singleStxs := #[]
-  --   for arg in stx[4][1].getSepArgs do
-  --     let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
-  --     let newStx := stx.setArg 4 (mkNullNode argsStx)
-  --     -- logInfo m!"  {newStx}"
-  --     singleStxs := singleStxs.push newStx
-  --     -- logInfo m!"  {arg}"
-  --     let equiv ← isEquivalentTactics
-  --       (evalSimpImp stx)
-  --       (for singleStx in singleStxs do
-  --         evalSimpImpWithMaxSteps 400 singleStx
-  --       )
-  --     if equiv then
-  --       IO.println "splitInfo : equiv!"
-  --       -- let startPos := stx.getPos?.getD (String.Pos.mk 0)
-  --       -- let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-  --       -- traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
-  --     else
-  --       IO.println "splitInfo : non-equiv"
+          -- logInfo m!"  {step}"
+          traceCanonicalInfo step startPos endPos "expandSimp.split"
+          evalSimpImpWithMaxSteps 100 step
+        s.restore
 
   -- if simpOnly then Core.withoutCountHeartbeats <| do
   --   let mut stxWithoutOnly := stx
