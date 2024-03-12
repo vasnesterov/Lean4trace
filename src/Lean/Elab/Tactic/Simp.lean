@@ -500,11 +500,11 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
       singleStxs := singleStxs.push newStx
     if singleStxs.size > 1 then
       -- let res ← searchSimpSeq stx singleStxs
-      mylog "before simp split test"
       let startPos := stx.getPos?.getD (String.Pos.mk 0)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
       traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
-      let res := if ← checkBlacklist "simp_split_blacklist.json" (← PrettyPrinter.formatTerm stx).pretty startPos endPos then
+      mylog "before auto: simp_split"
+      let res := if ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos then
         .none
       else
         ← simpSearchBFS stx singleStxs (maxDepth := 4)
