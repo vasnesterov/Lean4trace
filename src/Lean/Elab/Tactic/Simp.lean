@@ -506,10 +506,11 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
       mylog s!"check {check}"
       traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
       mylog "before auto: simp_split"
-      let res := if check then
-        .none
+      let res ← if check then
+        mylog "skipped"
+        pure .none
       else
-        ← simpSearchBFS stx singleStxs (maxDepth := 4)
+        simpSearchBFS stx singleStxs (maxDepth := 4)
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
