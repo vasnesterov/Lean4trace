@@ -510,7 +510,9 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
         mylog "skipped"
         pure .none
       else
-        simpSearchBFS stx singleStxs (maxDepth := 4)
+        let res' := ← simpSearchBFS stx singleStxs (maxDepth := 4)
+        mylog "done"
+        pure res'
       match res with
       | .none => logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
       | .some path => do
