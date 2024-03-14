@@ -495,6 +495,10 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
   Core.withoutCountHeartbeats do
     let mut singleStxs := #[]
 
+    /- add bare simp; todo: add simp [*] -/
+    let bareSimp := stx.setArg 4 mkNullNode
+    singleStxs := singleStxs.push bareSimp
+
     /- add syntaxes without only -/
     let hasOnly := !stx[3].isNone
     if hasOnly then
