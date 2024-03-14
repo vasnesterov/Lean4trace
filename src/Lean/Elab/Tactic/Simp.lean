@@ -494,11 +494,22 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   Core.withoutCountHeartbeats do
     let mut singleStxs := #[]
+
+    /- add syntaxes without only -/
+    let hasOnly := !stx[3].isNone
+    if hasOnly then
+      for arg in stx[4][1].getSepArgs do
+        let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
+        let newStx := stx.setArg 4 (mkNullNode argsStx)
+        singleStxs := singleStxs.push <| newStx.setArg 3 mkNullNode
+
+    /- then with only -/
     for arg in stx[4][1].getSepArgs do
       let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
       let newStx := stx.setArg 4 (mkNullNode argsStx)
       singleStxs := singleStxs.push newStx
-    if singleStxs.size > 1 then
+
+    if stx[4][1].getSepArgs.size > 1 then
       let startPos := stx.getPos?.getD (String.Pos.mk 0)
       let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
       let check ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos
