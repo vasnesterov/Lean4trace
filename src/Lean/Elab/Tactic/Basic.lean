@@ -213,8 +213,8 @@ def checkBlacklist (blName : String) (proofStep : String) (startPos : String.Pos
 
 partial def evalTactic (stx : Syntax) : TacticM Unit := do
   -- IO.println s!"evalTactic: {← getBoolOption `_doTracing true}"
-  -- if (← getBoolOption `_doTracing true) then
-  --   trace stx
+  if (← getBoolOption `_doTracing true) then
+    trace stx
 
   profileitM Exception "tactic execution" (decl := stx.getKind) (← getOptions) <|
   withRef stx <| withIncRecDepth <| withFreshMacroScope <| match stx with
@@ -247,7 +247,7 @@ where
         let stxKind := stx.getKind
         if !ignoredStxKinds.contains stxKind then
           traceCanonicalInfo stx startPos endPos
-          checkAuto startPos endPos
+          -- checkAuto startPos endPos
 
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
