@@ -148,6 +148,7 @@ structure TraceInfo where
   source : String
   proofState : String
   proofStep : String
+  premises : Array String
   stxKind : String
   /- Meta info -/
   fileName : String
@@ -158,9 +159,24 @@ deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
 
 def mylog (s : String) : TacticM Unit := do
   IO.println s
-  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  h.putStr <| s.push '\n'
-  h.flush
+  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  -- h.putStr <| s.push '\n'
+  -- h.flush
+
+partial def extractNames (stx : Syntax) : Array Name :=
+  match stx with
+  -- | .atom _ _ => #[stx]
+  | .node _ kind args => (args.map extractNames).foldl (fun acc item => acc ++ item) #[]
+  | .ident info rawVal val preresolved =>
+    if (stx.getPos? (canonicalOnly := true)).isNone then #[] else #[val]
+  | _ => #[]
+
+def filterDefinitions (names : Array Name) : TacticM <| Array Name := do
+  let mut ans : Array Name := #[]
+  for name in names do
+    if (← getEnv).contains name then
+      ans := ans.push name
+  return ans
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
@@ -170,10 +186,14 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     proofStep := (← PrettyPrinter.formatTerm stx).pretty
   catch _ => pure ()
 
+  -- mylog proofStep
+  -- mylog s!"{extractLemmas stx}"
+
   let ti : TraceInfo := {
     source := source
     proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
+    premises := (← filterDefinitions <| extractNames stx).map (·.toString)
     stxKind := stx.getKind.toString
     fileName := ← getFileName
     declName := (← Term.getDeclName?).getD `no_decl
@@ -252,18 +272,19 @@ where
     /- Check if some automated tactic can close the goal.
     If yes, trace it -/
     checkAuto (startPos : String.Pos) (endPos : String.Pos) : TacticM Unit := do
-      let autos_str := #[
-        "simp (config := { maxSteps := 400 }) [*]",
-        "solve_by_elim",
-        "tauto",
-        "ring",
-        "linarith",
-        "nlinarith",
-        "abel",
-        "omega",
-        "continuity",
-        "aesop (simp_config := {maxSteps := 400})"
-      ]
+      -- let autos_str := #[
+      --   "simp (config := { maxSteps := 400 }) [*]",
+      --   "solve_by_elim",
+      --   "tauto",
+      --   "ring",
+      --   "linarith",
+      --   "nlinarith",
+      --   "abel",
+      --   "omega",
+      --   "continuity",
+      --   "aesop (simp_config := {maxSteps := 400})"
+      -- ]
+      let autos_str := #["tauto"]
 
       let env ← getEnv
       let autos : Array (String × Syntax) := autos_str.filterMap (fun str =>
@@ -279,6 +300,7 @@ where
           source := "checkAuto"
           proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
           proofStep := autoStr
+          premises := #[]
           stxKind := autoStx.getKind.toString
           fileName := ← getFileName
           declName := (← Term.getDeclName?).getD `no_decl
