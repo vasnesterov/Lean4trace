@@ -174,9 +174,17 @@ partial def extractNames (stx : Syntax) : Array Name :=
 def filterDefinitions (names : Array Name) : TacticM <| Array Name := do
   let mut ans : Array Name := #[]
   for name in names do
-    if (← getEnv).contains name then
-      let kek ← resolveGlobalName name
-      ans := ans.push kek.head!.fst
+    let resolvedList := (← resolveGlobalName name).map (·.fst)
+    if resolvedList.length > 1 then
+      mylog "Ambigous!!!"
+      mylog s!"NAME: {name}"
+      mylog s!"RESOLVE: {resolvedList}"
+    match (← resolveGlobalName name).getLast? with
+    | .none => pure ()
+    | .some ⟨resolved, _⟩ =>
+    if (← getEnv).contains resolved then
+      -- mylog "CONTAINS ^^"
+      ans := ans.push resolved
       -- ans := ans.push name
   return ans
 
