@@ -163,30 +163,28 @@ def mylog (s : String) : TacticM Unit := do
   -- h.putStr <| s.push '\n'
   -- h.flush
 
-partial def extractNames (stx : Syntax) : Array Name :=
+partial def extractPremises (stx : Syntax) : TacticM <| Array Name := do
   match stx with
-  -- | .atom _ _ => #[stx]
-  | .node _ kind args => (args.map extractNames).foldl (fun acc item => acc ++ item) #[]
+  | .node _ kind args =>
+    return (← args.mapM extractPremises).foldl (fun acc item => acc ++ item) #[]
   | .ident info rawVal val preresolved =>
-    if (stx.getPos? (canonicalOnly := true)).isNone then #[] else #[val]
-  | _ => #[]
-
-def filterDefinitions (names : Array Name) : TacticM <| Array Name := do
-  let mut ans : Array Name := #[]
-  for name in names do
-    let resolvedList := (← resolveGlobalName name).map (·.fst)
-    if resolvedList.length > 1 then
-      mylog "Ambigous!!!"
-      mylog s!"NAME: {name}"
-      mylog s!"RESOLVE: {resolvedList}"
-    match (← resolveGlobalName name).getLast? with
-    | .none => pure ()
-    | .some ⟨resolved, _⟩ =>
-    if (← getEnv).contains resolved then
-      -- mylog "CONTAINS ^^"
-      ans := ans.push resolved
-      -- ans := ans.push name
-  return ans
+    if (stx.getPos? (canonicalOnly := true)).isNone then
+      return #[]
+    else
+      let resolvedList ← try
+        resolveGlobalConst stx
+      catch ex => pure .nil
+      if resolvedList.length > 1 then
+        mylog "Ambigous!!!"
+        mylog s!"stx: {stx}"
+        mylog s!"RESOLVE: {resolvedList}"
+      match resolvedList.head? with
+      | .none => return #[]
+      | .some resolved =>
+        if (← getEnv).contains resolved then
+          return #[resolved]
+        return #[]
+  | _ => return #[]
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
@@ -203,7 +201,8 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     source := source
     proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
-    premises := (← filterDefinitions <| extractNames stx).map (·.toString)
+    premises := (← extractPremises stx).map (·.toString)
+    -- premises := (← filterDefinitions <| extractNames stx).map (·.toString)
     stxKind := stx.getKind.toString
     fileName := ← getFileName
     declName := (← Term.getDeclName?).getD `no_decl
