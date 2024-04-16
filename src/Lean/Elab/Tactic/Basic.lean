@@ -175,7 +175,9 @@ def filterDefinitions (names : Array Name) : TacticM <| Array Name := do
   let mut ans : Array Name := #[]
   for name in names do
     if (← getEnv).contains name then
-      ans := ans.push name
+      let kek ← resolveGlobalName name
+      ans := ans.push kek.head!.fst
+      -- ans := ans.push name
   return ans
 
 /-- Trace `TraceInfo` from current state. Basic function of tracing
