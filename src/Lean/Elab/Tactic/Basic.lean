@@ -143,19 +143,26 @@ structure EvalTacticFailure where
 /---------------------------------------------------------------------------------------------------
 Functions for tracing. Will be moved to another file -/
 
+structure PremiseInfo where
+  kind : String
+  name : Name
+  pp : String
+  module : Name
+deriving ToJson
+
 structure TraceInfo where
   /- Main info -/
   source : String
   proofState : String
   proofStep : String
-  premises : Array String
+  premises : Array PremiseInfo
   stxKind : String
   /- Meta info -/
   fileName : String
   declName : Name
   startPos : String
   endPos : String
-deriving Lean.ToJson, Lean.FromJson, Inhabited, Repr
+deriving Lean.ToJson, Inhabited
 
 def mylog (s : String) : TacticM Unit := do
   IO.println s
@@ -163,10 +170,10 @@ def mylog (s : String) : TacticM Unit := do
   -- h.putStr <| s.push '\n'
   -- h.flush
 
-partial def extractPremises (stx : Syntax) : TacticM <| Array Name := do
+partial def extractPremisesNames (stx : Syntax) : TacticM <| Array Name := do
   match stx with
   | .node _ kind args =>
-    return (← args.mapM extractPremises).foldl (fun acc item => acc ++ item) #[]
+    return (← args.mapM extractPremisesNames).foldl (fun acc item => acc ++ item) #[]
   | .ident info rawVal val preresolved =>
     if (stx.getPos? (canonicalOnly := true)).isNone then
       return #[]
@@ -186,6 +193,40 @@ partial def extractPremises (stx : Syntax) : TacticM <| Array Name := do
         return #[]
   | _ => return #[]
 
+def getKind : ConstantInfo → String
+  | .axiomInfo  _ => "axiom"
+  | .defnInfo   _ => "def"
+  | .thmInfo    _ => "theorem"
+  | .opaqueInfo _ => "opaque"
+  | .quotInfo   _ => "quot" -- Not sure what this is!
+  | .inductInfo _ => "inductive"
+  | .ctorInfo   _ => "constructor"
+  | .recInfo    _ => "recursor"
+
+def getModuleFor? (env : Environment) (declName : Name) : Option Name :=
+  match env.getModuleIdxFor? declName with
+  | none =>
+    if env.constants.map₂.contains declName then
+      env.header.mainModule
+    else
+      none
+  | some idx => env.header.moduleNames[idx.toNat]!
+
+def extractPremises (stx : Syntax) : TacticM <| Array PremiseInfo := do
+  return ← (← extractPremisesNames stx).filterMapM fun name => do
+  let ci := (← getEnv).find? name
+  match ci with
+  | .none => return none
+  | .some ci =>
+    -- if ← n.isBlackListed then
+    --   return none
+    return some {
+      name := name
+      kind := getKind ci
+      pp := (← MetaM.run' do ppExpr ci.type).pretty
+      module := getModuleFor? (← getEnv) name |>.get!
+    }
+
 /-- Trace `TraceInfo` from current state. Basic function of tracing
 TODO: trace theorem name and all accessible premises -/
 def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.Pos) (source : String := "canonical") : TacticM Unit := do
@@ -201,7 +242,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     source := source
     proofState := (← Meta.ppGoals (← getUnsolvedGoals)).pretty
     proofStep := proofStep
-    premises := (← extractPremises stx).map (·.toString)
+    premises := ← extractPremises stx
     -- premises := (← filterDefinitions <| extractNames stx).map (·.toString)
     stxKind := stx.getKind.toString
     fileName := ← getFileName
