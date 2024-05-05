@@ -158,6 +158,7 @@ structure TraceInfo where
   premises : Array PremiseInfo
   stxKind : String
   /- Meta info -/
+  moduleName : Name
   fileName : String
   declName : Name
   startPos : String
@@ -245,6 +246,7 @@ def traceCanonicalInfo (stx : Syntax) (startPos : String.Pos) (endPos : String.P
     premises := ← extractPremises stx
     -- premises := (← filterDefinitions <| extractNames stx).map (·.toString)
     stxKind := stx.getKind.toString
+    moduleName := (← getEnv).mainModule
     fileName := ← getFileName
     declName := (← Term.getDeclName?).getD `no_decl
     startPos := toString <| (← getFileMap).toPosition startPos
@@ -352,6 +354,7 @@ where
           proofStep := autoStr
           premises := #[]
           stxKind := autoStx.getKind.toString
+          moduleName := (← getEnv).mainModule
           fileName := ← getFileName
           declName := (← Term.getDeclName?).getD `no_decl
           startPos := toString <| (← getFileMap).toPosition startPos

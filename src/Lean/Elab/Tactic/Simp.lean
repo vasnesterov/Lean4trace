@@ -492,67 +492,54 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
   return .none
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
-  -- Core.withoutCountHeartbeats do
-  --   let mut singleStxs := #[]
+  Core.withoutCountHeartbeats do
+    let mut singleStxs := #[]
 
-  --   /- add bare simp; todo: add simp [*] -/
-  --   let bareSimp := stx.setArg 4 mkNullNode
-  --   singleStxs := singleStxs.push bareSimp
+    /- add bare simp; todo: add simp [*] -/
+    let bareSimp := stx.setArg 4 mkNullNode
+    singleStxs := singleStxs.push bareSimp
 
-  --   /- add syntaxes without only -/
-  --   let hasOnly := !stx[3].isNone
-  --   if hasOnly then
-  --     for arg in stx[4][1].getSepArgs do
-  --       let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
-  --       let newStx := stx.setArg 4 (mkNullNode argsStx)
-  --       singleStxs := singleStxs.push <| newStx.setArg 3 mkNullNode
+    /- add syntaxes without only -/
+    let hasOnly := !stx[3].isNone
+    if hasOnly then
+      for arg in stx[4][1].getSepArgs do
+        let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
+        let newStx := stx.setArg 4 (mkNullNode argsStx)
+        singleStxs := singleStxs.push <| newStx.setArg 3 mkNullNode
 
-  --   /- then with only -/
-  --   for arg in stx[4][1].getSepArgs do
-  --     let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
-  --     let newStx := stx.setArg 4 (mkNullNode argsStx)
-  --     singleStxs := singleStxs.push newStx
+    /- then with only -/
+    for arg in stx[4][1].getSepArgs do
+      let argsStx := #[mkAtom "[", (mkAtom ",").mkSep #[arg], mkAtom "]"]
+      let newStx := stx.setArg 4 (mkNullNode argsStx)
+      singleStxs := singleStxs.push newStx
 
-  --   if stx[4][1].getSepArgs.size > 1 then
-  --     let startPos := stx.getPos?.getD (String.Pos.mk 0)
-  --     let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-  --     traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
-  --     mylog "before auto: simp_split"
-  --     let res ← if ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos then
-  --       mylog "skipped"
-  --       pure .none
-  --     else
-  --       let res' ← simpSearchBFS stx singleStxs (maxDepth := 10)
-  --       mylog "done"
-  --       pure res'
-  --     match res with
-  --     | .none =>
-  --       pure ()
-  --       -- logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
-  --     | .some path => do
-  --       -- logInfo "splitInfo : equiv!"
-  --       let s ← saveState
+    if stx[4][1].getSepArgs.size > 1 then
+      let startPos := stx.getPos?.getD (String.Pos.mk 0)
+      let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
+      traceCanonicalInfo stx startPos endPos "expandSimp.split.forBL"
+      mylog "before auto: simp_split"
+      let res ← if ← checkBlacklist "simp_split_blacklist.json" "simp_split" startPos endPos then
+        mylog "skipped"
+        pure .none
+      else
+        let res' ← simpSearchBFS stx singleStxs (maxDepth := 10)
+        mylog "done"
+        pure res'
+      match res with
+      | .none =>
+        pure ()
+        -- logInfo m!"splitInfo : non-equiv {stx[4][1].getSepArgs.size} AT {stx}"
+      | .some path => do
+        -- logInfo "splitInfo : equiv!"
+        let s ← saveState
 
-  --       -- logInfo m!"  {stx}"
-  --       for step in path do
-  --         -- logInfo m!"  {step}"
-  --         traceCanonicalInfo step startPos endPos "expandSimp.split"
-  --         evalSimpImpWithMaxSteps 100 step
-  --       s.restore
+        -- logInfo m!"  {stx}"
+        for step in path do
+          -- logInfo m!"  {step}"
+          traceCanonicalInfo step startPos endPos "expandSimp.split"
+          evalSimpImpWithMaxSteps 100 step
+        s.restore
 
-  -- if simpOnly then Core.withoutCountHeartbeats <| do
-  --   let mut stxWithoutOnly := stx
-  --   stxWithoutOnly := stxWithoutOnly.setArg 3 mkNullNode
-  --   let equiv ← isEquivalentTactics
-  --     (evalSimpImp stx)
-  --     (evalSimpImpWithMaxSteps 400 stxWithoutOnly)
-  --   if equiv then
-  --     IO.println "onlyinfo : equiv!"
-  --     let startPos := stx.getPos?.getD (String.Pos.mk 0)
-  --     let endPos := stx.getTailPos?.getD (String.Pos.mk 0)
-  --     traceCanonicalInfo stxWithoutOnly startPos endPos "expandSimp.withoutOnly"
-  --   else
-  --     IO.println "onlyinfo : non-equiv"
   evalSimpImp stx
 
 @[builtin_tactic Lean.Parser.Tactic.simpAll] def evalSimpAll : Tactic := fun stx => withMainContext do
