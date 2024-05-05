@@ -167,9 +167,9 @@ deriving Lean.ToJson, Inhabited
 
 def mylog (s : String) : TacticM Unit := do
   IO.println s
-  -- let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
-  -- h.putStr <| s.push '\n'
-  -- h.flush
+  let h ← IO.FS.Handle.mk s!"./mylog/{← getFileName}" IO.FS.Mode.append
+  h.putStr <| s.push '\n'
+  h.flush
 
 partial def extractPremisesNames (stx : Syntax) : TacticM <| Array Name := do
   match stx with
