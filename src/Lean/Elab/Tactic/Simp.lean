@@ -492,7 +492,7 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
   return .none
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
-  Core.withoutCountHeartbeats do
+  Core.withoutCountHeartbeats <| withOptions (fun o => o.setBool `_doTracing false) do
     let mut singleStxs := #[]
 
     /- add bare simp; todo: add simp [*] -/
