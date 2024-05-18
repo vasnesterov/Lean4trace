@@ -491,7 +491,7 @@ partial def simpSearchBFS (canonicalStx : Syntax) (possibleSteps : Array Syntax)
 
   return .none
 
-private def _doSimpTracing := false
+private def _doSimpTracing := true
 
 @[builtin_tactic Lean.Parser.Tactic.simp] def evalSimp : Tactic := fun stx => do
   if _doSimpTracing then

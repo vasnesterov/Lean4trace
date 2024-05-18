@@ -94,7 +94,7 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
   s.restore
 
-private def _doRwTracing := false
+private def _doRwTracing := true
 
 @[builtin_tactic Lean.Parser.Tactic.rewriteSeq] def evalRewriteSeq : Tactic := fun stx => do
   let cfg ← elabRewriteConfig stx[1]
