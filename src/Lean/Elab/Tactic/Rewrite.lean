@@ -94,14 +94,16 @@ def traceExpandRw (stx : Syntax) : TacticM Unit := do
     withOptions (fun o => o.setBool `_doTracing false) <| evalTactic oneRuleStx
   s.restore
 
+private def _doRwTracing := false
 
 @[builtin_tactic Lean.Parser.Tactic.rewriteSeq] def evalRewriteSeq : Tactic := fun stx => do
   let cfg ← elabRewriteConfig stx[1]
   let loc   := expandOptLocation stx[3]
 
-  let rules := stx[2][1].getArgs
-  if rules.size > 1 then Core.withoutCountHeartbeats <| withOptions (fun o => o.setBool `_doTracing false) do
-    traceExpandRw stx
+  if _doRwTracing then
+    let rules := stx[2][1].getArgs
+    if rules.size > 1 then Core.withoutCountHeartbeats <| withOptions (fun o => o.setBool `_doTracing false) do
+      traceExpandRw stx
     -- let eq := ← isEquivalentTactics
     --   (withRWRulesSeq stx[0] stx[2] fun symm term => do
     --     withLocation loc
